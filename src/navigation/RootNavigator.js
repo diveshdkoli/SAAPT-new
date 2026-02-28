@@ -4,17 +4,14 @@ import AuthNavigator from './AuthNavigator';
 import TeacherNavigator from './TeacherNavigator';
 import StudentNavigator from './StudentNavigator';
 
-// Temporary auth state — will be replaced with Firebase Auth later
-export let appNavigate = null;
-
 const RootNavigator = () => {
   const [authState, setAuthState] = useState({
     isLoggedIn: false,
-    role: null, // 'teacher' | 'student'
+    role: null,
   });
 
-  const handleLogin = (role) => {
-    setAuthState({ isLoggedIn: true, role });
+  const handleLogin = (userData) => {
+    setAuthState({ isLoggedIn: true, role: userData.role });
   };
 
   const handleLogout = () => {
@@ -27,8 +24,10 @@ const RootNavigator = () => {
         <AuthNavigator onLogin={handleLogin} />
       ) : authState.role === 'teacher' ? (
         <TeacherNavigator onLogout={handleLogout} />
-      ) : (
+      ) : authState.role === 'student' ? (
         <StudentNavigator onLogout={handleLogout} />
+      ) : (
+        <AuthNavigator onLogin={handleLogin} />
       )}
     </NavigationContainer>
   );

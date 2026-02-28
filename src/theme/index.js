@@ -43,3 +43,4 @@ export const Radius = {
   lg: 20,
   pill: 50,
 };
+export default { Colors, Typography, Spacing, Radius };

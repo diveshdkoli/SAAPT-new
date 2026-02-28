@@ -4,8 +4,9 @@ import {
   StatusBar, ScrollView, Animated, Dimensions,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { Colors, Spacing, Radius } from '../../theme';
-
+import { Alert } from 'react-native';
+import { loginUser } from '../../services/firebase/auth';
+import { Colors } from '../../theme';
 const { height } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation, onLogin }) => {
@@ -35,15 +36,18 @@ const LoginScreen = ({ navigation, onLogin }) => {
 
   const isFormValid = username.trim().length > 0 && password.trim().length > 0;
 
-  const handleLogin = () => {
-    if (!isFormValid) return;
-    setLoading(true);
-    // Simulate brief loading then navigate — replace with Firebase later
-    setTimeout(() => {
-      setLoading(false);
-      onLogin(role); // 'teacher' or 'student'
-    }, 600);
-  };
+ const handleLogin = async () => {
+  if (!isFormValid) return;
+  setLoading(true);
+  try {
+    const userData = await loginUser(username, password);
+    onLogin(userData);
+  } catch (error) {
+    Alert.alert('Login Failed', error.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <View style={styles.root}>
