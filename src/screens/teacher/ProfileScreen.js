@@ -1,8 +1,9 @@
 import React from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, StatusBar, Alert,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme';
 
 const InfoRow = ({ label, value }) => (
@@ -39,9 +40,12 @@ const TeacherProfileScreen = ({ onLogout }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#F4F7F5"
+        translucent={false}
+      />
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>Profile</Text>
       </View>
@@ -63,15 +67,15 @@ const TeacherProfileScreen = ({ onLogout }) => {
         {/* Info Card */}
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Account Information</Text>
-          <InfoRow label="Username"   value={teacher.username} />
+          <InfoRow label="Username" value={teacher.username} />
           <View style={styles.divider} />
-          <InfoRow label="Email"      value={teacher.email} />
+          <InfoRow label="Email" value={teacher.email} />
           <View style={styles.divider} />
-          <InfoRow label="Phone"      value={teacher.phone} />
+          <InfoRow label="Phone" value={teacher.phone} />
           <View style={styles.divider} />
           <InfoRow label="Department" value={teacher.department} />
           <View style={styles.divider} />
-          <InfoRow label="Joined"     value={teacher.joinedYear} />
+          <InfoRow label="Joined" value={teacher.joinedYear} />
         </View>
 
         {/* Stats Card */}
@@ -123,14 +127,14 @@ const styles = StyleSheet.create({
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, elevation: 6,
   },
-  avatarTxt:  { color: '#fff', fontWeight: '800', fontSize: 28 },
-  name:       { fontSize: 22, fontWeight: '800', color: '#1C1C1C' },
+  avatarTxt: { color: '#fff', fontWeight: '800', fontSize: 28 },
+  name: { fontSize: 22, fontWeight: '800', color: '#1C1C1C' },
   roleBadge: {
     backgroundColor: '#E6F0EA', borderRadius: 50,
     paddingHorizontal: 14, paddingVertical: 5,
   },
-  roleTxt:    { fontSize: 13, fontWeight: '600', color: Colors.primary },
-  empId:      { fontSize: 13, color: '#6B6B6B' },
+  roleTxt: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+  empId: { fontSize: 13, color: '#6B6B6B' },
 
   card: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16,
@@ -141,16 +145,16 @@ const styles = StyleSheet.create({
     fontSize: 11, fontWeight: '700', color: '#9E9E9E',
     letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14,
   },
-  infoRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
   infoLabel: { fontSize: 14, color: '#6B6B6B' },
   infoValue: { fontSize: 14, fontWeight: '600', color: '#1C1C1C', maxWidth: '60%', textAlign: 'right' },
-  divider:   { height: 1, backgroundColor: '#F5F5F5' },
+  divider: { height: 1, backgroundColor: '#F5F5F5' },
 
-  statsRow:     { flexDirection: 'row' },
-  statItem:     { flex: 1, alignItems: 'center', paddingVertical: 12 },
-  statVal:      { fontSize: 26, fontWeight: '800' },
-  statLabel:    { fontSize: 12, color: '#6B6B6B', marginTop: 2 },
-  statDivider:  { width: 1, backgroundColor: '#F0F0F0' },
+  statsRow: { flexDirection: 'row' },
+  statItem: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  statVal: { fontSize: 26, fontWeight: '800' },
+  statLabel: { fontSize: 12, color: '#6B6B6B', marginTop: 2 },
+  statDivider: { width: 1, backgroundColor: '#F0F0F0' },
 
   logoutBtn: {
     backgroundColor: '#FFF0F0', borderRadius: 14, padding: 18,

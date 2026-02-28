@@ -1,8 +1,9 @@
 import React from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, StatusBar, Alert,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme';
 
 const InfoRow = ({ label, value }) => (
@@ -35,9 +36,12 @@ const StudentProfileScreen = ({ onLogout }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#F4F7F5"
+        translucent={false}
+      />
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>Profile</Text>
       </View>
@@ -70,11 +74,11 @@ const StudentProfileScreen = ({ onLogout }) => {
           <Text style={styles.cardLabel}>Account Information</Text>
           <InfoRow label="Username" value={student.username} />
           <View style={styles.divider} />
-          <InfoRow label="Email"    value={student.email} />
+          <InfoRow label="Email" value={student.email} />
           <View style={styles.divider} />
-          <InfoRow label="Phone"    value={student.phone} />
+          <InfoRow label="Phone" value={student.phone} />
           <View style={styles.divider} />
-          <InfoRow label="Class"    value={student.className} />
+          <InfoRow label="Class" value={student.className} />
         </View>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
@@ -89,7 +93,7 @@ const StudentProfileScreen = ({ onLogout }) => {
 export default StudentProfileScreen;
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F4F7F5', paddingTop: 8 },
+  safe: { flex: 1, backgroundColor: '#F4F7F5' },
   topBar: {
     paddingHorizontal: 16, paddingVertical: 14,
     backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
@@ -104,11 +108,11 @@ const styles = StyleSheet.create({
     shadowColor: '#7C5CBF', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, elevation: 6,
   },
-  avatarTxt:  { color: '#fff', fontWeight: '800', fontSize: 28 },
-  name:       { fontSize: 22, fontWeight: '800', color: '#1C1C1C' },
-  roleBadge:  { backgroundColor: '#F3EEFF', borderRadius: 50, paddingHorizontal: 14, paddingVertical: 5 },
-  roleTxt:    { fontSize: 13, fontWeight: '600', color: '#7C5CBF' },
-  rollNo:     { fontSize: 13, color: '#6B6B6B' },
+  avatarTxt: { color: '#fff', fontWeight: '800', fontSize: 28 },
+  name: { fontSize: 22, fontWeight: '800', color: '#1C1C1C' },
+  roleBadge: { backgroundColor: '#F3EEFF', borderRadius: 50, paddingHorizontal: 14, paddingVertical: 5 },
+  roleTxt: { fontSize: 13, fontWeight: '600', color: '#7C5CBF' },
+  rollNo: { fontSize: 13, color: '#6B6B6B' },
 
   card: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16,
@@ -117,19 +121,19 @@ const styles = StyleSheet.create({
   },
   attendanceCard: { alignItems: 'center', gap: 8 },
   attendanceLabel: { fontSize: 12, fontWeight: '700', color: '#9E9E9E', letterSpacing: 1, textTransform: 'uppercase' },
-  attendancePct:   { fontSize: 48, fontWeight: '800', color: Colors.primary },
-  progressBg:      { width: '100%', height: 8, backgroundColor: '#F0F0F0', borderRadius: 50, overflow: 'hidden' },
-  progressFill:    { height: '100%', backgroundColor: Colors.primary, borderRadius: 50 },
-  attendanceSub:   { fontSize: 12, color: '#6B6B6B' },
+  attendancePct: { fontSize: 48, fontWeight: '800', color: Colors.primary },
+  progressBg: { width: '100%', height: 8, backgroundColor: '#F0F0F0', borderRadius: 50, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 50 },
+  attendanceSub: { fontSize: 12, color: '#6B6B6B' },
 
   cardLabel: {
     fontSize: 11, fontWeight: '700', color: '#9E9E9E',
     letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14,
   },
-  infoRow:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
   infoLabel: { fontSize: 14, color: '#6B6B6B' },
   infoValue: { fontSize: 14, fontWeight: '600', color: '#1C1C1C', maxWidth: '60%', textAlign: 'right' },
-  divider:   { height: 1, backgroundColor: '#F5F5F5' },
+  divider: { height: 1, backgroundColor: '#F5F5F5' },
 
   logoutBtn: {
     backgroundColor: '#FFF0F0', borderRadius: 14, padding: 18,

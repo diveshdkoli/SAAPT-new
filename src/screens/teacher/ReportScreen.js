@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, StatusBar,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme';
 
 const DEFAULTER_THRESHOLD = 75; // universal variable — change here to update everywhere
@@ -14,21 +15,21 @@ const MOCK_REPORT = [
       {
         id: 's1', name: 'Mathematics', totalSessions: 18,
         students: [
-          { id: 'st1', name: 'Aarav Sharma',  present: 16 },
-          { id: 'st2', name: 'Priya Patel',   present: 18 },
-          { id: 'st3', name: 'Rohan Mehta',   present: 10 },
-          { id: 'st4', name: 'Sneha Verma',   present: 14 },
-          { id: 'st5', name: 'Arjun Singh',   present: 8  },
+          { id: 'st1', name: 'Aarav Sharma', present: 16 },
+          { id: 'st2', name: 'Priya Patel', present: 18 },
+          { id: 'st3', name: 'Rohan Mehta', present: 10 },
+          { id: 'st4', name: 'Sneha Verma', present: 14 },
+          { id: 'st5', name: 'Arjun Singh', present: 8 },
         ],
       },
       {
         id: 's2', name: 'Physics', totalSessions: 14,
         students: [
-          { id: 'st1', name: 'Aarav Sharma',  present: 13 },
-          { id: 'st2', name: 'Priya Patel',   present: 9  },
-          { id: 'st3', name: 'Rohan Mehta',   present: 14 },
-          { id: 'st4', name: 'Sneha Verma',   present: 6  },
-          { id: 'st5', name: 'Arjun Singh',   present: 11 },
+          { id: 'st1', name: 'Aarav Sharma', present: 13 },
+          { id: 'st2', name: 'Priya Patel', present: 9 },
+          { id: 'st3', name: 'Rohan Mehta', present: 14 },
+          { id: 'st4', name: 'Sneha Verma', present: 6 },
+          { id: 'st5', name: 'Arjun Singh', present: 11 },
         ],
       },
     ],
@@ -39,9 +40,9 @@ const MOCK_REPORT = [
       {
         id: 's4', name: 'English', totalSessions: 16,
         students: [
-          { id: 'st6', name: 'Ananya Gupta',  present: 15 },
-          { id: 'st7', name: 'Kabir Joshi',   present: 11 },
-          { id: 'st8', name: 'Meera Nair',    present: 7  },
+          { id: 'st6', name: 'Ananya Gupta', present: 15 },
+          { id: 'st7', name: 'Kabir Joshi', present: 11 },
+          { id: 'st8', name: 'Meera Nair', present: 7 },
         ],
       },
     ],
@@ -84,9 +85,12 @@ const TeacherReportScreen = () => {
   });
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#F4F7F5"
+        translucent={false}
+      />
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>Reports</Text>
         <Text style={styles.topBarSub}>Threshold: {DEFAULTER_THRESHOLD}% attendance required</Text>
@@ -186,13 +190,13 @@ const TeacherReportScreen = () => {
 export default TeacherReportScreen;
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F4F7F5', paddingTop: 8 },
+  safe: { flex: 1, backgroundColor: '#F4F7F5' },
   topBar: {
     paddingHorizontal: 16, paddingVertical: 14,
     backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
   topBarTitle: { fontSize: 20, fontWeight: '700', color: '#1C1C1C' },
-  topBarSub:   { fontSize: 12, color: '#6B6B6B', marginTop: 2 },
+  topBarSub: { fontSize: 12, color: '#6B6B6B', marginTop: 2 },
 
   tabRow: {
     flexDirection: 'row', backgroundColor: '#fff',
@@ -204,7 +208,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#E0E0E0',
   },
   tabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  tabTxt:       { fontSize: 13, fontWeight: '600', color: '#6B6B6B' },
+  tabTxt: { fontSize: 13, fontWeight: '600', color: '#6B6B6B' },
   tabTxtActive: { color: '#fff' },
 
   scroll: { padding: 16, paddingBottom: 32, gap: 12 },
@@ -224,7 +228,7 @@ const styles = StyleSheet.create({
   },
   subjectName: { fontSize: 15, fontWeight: '700', color: '#1C1C1C' },
   subjectMeta: { fontSize: 12, color: '#6B6B6B', marginTop: 2 },
-  chevron:     { fontSize: 22, color: '#C0C0C0' },
+  chevron: { fontSize: 22, color: '#C0C0C0' },
 
   studentList: { borderTopWidth: 1, borderTopColor: '#F5F5F5' },
   listHeader: {
@@ -253,16 +257,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', padding: 14,
   },
-  defaulterName:     { fontSize: 15, fontWeight: '700', color: '#1C1C1C' },
+  defaulterName: { fontSize: 15, fontWeight: '700', color: '#1C1C1C' },
   defaulterSubjects: { paddingHorizontal: 14, paddingBottom: 12, gap: 4 },
   defaulterSubjectRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  defaulterSubName:  { fontSize: 13, color: '#6B6B6B' },
-  defaulterSubPct:   { fontSize: 13, fontWeight: '700', color: '#D94F4F' },
+  defaulterSubName: { fontSize: 13, color: '#6B6B6B' },
+  defaulterSubPct: { fontSize: 13, fontWeight: '700', color: '#D94F4F' },
 
   emptyCard: {
     backgroundColor: '#fff', borderRadius: 14, padding: 24,
     alignItems: 'center', gap: 8,
   },
   emptyEmoji: { fontSize: 36 },
-  emptyTxt:   { fontSize: 14, color: '#6B6B6B' },
+  emptyTxt: { fontSize: 14, color: '#6B6B6B' },
 });

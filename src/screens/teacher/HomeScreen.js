@@ -1,9 +1,11 @@
 import React from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, StatusBar, Dimensions,
+  StyleSheet, StatusBar, Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme';
+
 
 const { width } = Dimensions.get('window');
 
@@ -58,8 +60,11 @@ const TeacherHomeScreen = ({ navigation, onLogout }) => {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F7F5" />
-
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#F4F7F5"
+        translucent={false}
+      />
       {/* ── Top Bar ── */}
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>SAAPT</Text>
@@ -87,19 +92,19 @@ const TeacherHomeScreen = ({ navigation, onLogout }) => {
         {/* ── Overview Stats ── */}
         <Text style={styles.sectionLabel}>Overview</Text>
         <View style={styles.statsRow}>
-          <StatCard value={stats.classes}        label="Classes"    color={Colors.primary}   onPress={() => goTo('TeacherClasses')} />
-          <StatCard value={stats.subjects}       label="Subjects"   color="#7C5CBF"          onPress={() => goTo('TeacherClasses')} />
-          <StatCard value={stats.students}       label="Students"   color="#1976B8"          onPress={() => goTo('TeacherClasses')} />
-          <StatCard value={stats.attendanceRate} label="Avg Attend" color="#D97706"          onPress={() => goTo('TeacherReport')} />
+          <StatCard value={stats.classes} label="Classes" color={Colors.primary} onPress={() => goTo('TeacherClasses')} />
+          <StatCard value={stats.subjects} label="Subjects" color="#7C5CBF" onPress={() => goTo('TeacherClasses')} />
+          <StatCard value={stats.students} label="Students" color="#1976B8" onPress={() => goTo('TeacherClasses')} />
+          <StatCard value={stats.attendanceRate} label="Avg Attend" color="#D97706" onPress={() => goTo('TeacherReport')} />
         </View>
 
         {/* ── Quick Actions ── */}
         <Text style={styles.sectionLabel}>Quick Actions</Text>
         <View style={styles.card}>
-          <ActionRow emoji="✅" title="Mark Attendance"   subtitle="Record today's session"       onPress={() => goTo('TeacherAttendance')} />
-          <ActionRow emoji="📚" title="My Classes"        subtitle="View and manage classes"       onPress={() => goTo('TeacherClasses')} />
-          <ActionRow emoji="📊" title="View Reports"      subtitle="Attendance reports & analysis" onPress={() => goTo('TeacherReport')} />
-          <ActionRow emoji="⚠️" title="Defaulter List"    subtitle="Students below 75%"           onPress={() => goTo('TeacherReport')} last />
+          <ActionRow emoji="✅" title="Mark Attendance" subtitle="Record today's session" onPress={() => goTo('TeacherAttendance')} />
+          <ActionRow emoji="📚" title="My Classes" subtitle="View and manage classes" onPress={() => goTo('TeacherClasses')} />
+          <ActionRow emoji="📊" title="View Reports" subtitle="Attendance reports & analysis" onPress={() => goTo('TeacherReport')} />
+          <ActionRow emoji="⚠️" title="Defaulter List" subtitle="Students below 75%" onPress={() => goTo('TeacherReport')} last />
         </View>
 
       </ScrollView>
@@ -110,8 +115,7 @@ const TeacherHomeScreen = ({ navigation, onLogout }) => {
 export default TeacherHomeScreen;
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F4F7F5', paddingTop: 8 },
-
+  safe: { flex: 1, backgroundColor: '#F4F7F5' },
   // Top bar
   topBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -144,10 +148,10 @@ const styles = StyleSheet.create({
     position: 'absolute', width: 100, height: 100, borderRadius: 50,
     backgroundColor: 'rgba(255,255,255,0.05)', bottom: -20, left: -10,
   },
-  welcomeDate:     { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
+  welcomeDate: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
   welcomeGreeting: { fontSize: 14, color: 'rgba(255,255,255,0.85)' },
-  welcomeName:     { fontSize: 22, fontWeight: '800', color: '#fff', marginTop: 2 },
-  welcomeId:       { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 4 },
+  welcomeName: { fontSize: 22, fontWeight: '800', color: '#fff', marginTop: 2 },
+  welcomeId: { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 4 },
 
   // Section label
   sectionLabel: {
@@ -187,7 +191,7 @@ const styles = StyleSheet.create({
   actionEmoji: { fontSize: 18 },
   actionText: { flex: 1 },
   actionTitle: { fontSize: 15, fontWeight: '600', color: '#1C1C1C' },
-  actionSub:   { fontSize: 12, color: '#6B6B6B', marginTop: 1 },
-  chevron:     { fontSize: 22, color: '#C0C0C0', fontWeight: '300' },
-  rowDivider:  { height: 1, backgroundColor: '#F5F5F5', marginLeft: 70 },
+  actionSub: { fontSize: 12, color: '#6B6B6B', marginTop: 1 },
+  chevron: { fontSize: 22, color: '#C0C0C0', fontWeight: '300' },
+  rowDivider: { height: 1, backgroundColor: '#F5F5F5', marginLeft: 70 },
 });

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, StatusBar,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme';
 
 const MOCK_CLASSES = [
@@ -16,16 +17,16 @@ const MOCK_SUBJECTS = {
 };
 
 const MOCK_STUDENTS = [
-  { id: 'st1', name: 'Aarav Sharma',    rollNo: '01' },
-  { id: 'st2', name: 'Priya Patel',     rollNo: '02' },
-  { id: 'st3', name: 'Rohan Mehta',     rollNo: '03' },
-  { id: 'st4', name: 'Sneha Verma',     rollNo: '04' },
-  { id: 'st5', name: 'Arjun Singh',     rollNo: '05' },
-  { id: 'st6', name: 'Ananya Gupta',    rollNo: '06' },
-  { id: 'st7', name: 'Kabir Joshi',     rollNo: '07' },
-  { id: 'st8', name: 'Meera Nair',      rollNo: '08' },
-  { id: 'st9', name: 'Vivek Kumar',     rollNo: '09' },
-  { id: 'st10', name: 'Pooja Reddy',    rollNo: '10' },
+  { id: 'st1', name: 'Aarav Sharma', rollNo: '01' },
+  { id: 'st2', name: 'Priya Patel', rollNo: '02' },
+  { id: 'st3', name: 'Rohan Mehta', rollNo: '03' },
+  { id: 'st4', name: 'Sneha Verma', rollNo: '04' },
+  { id: 'st5', name: 'Arjun Singh', rollNo: '05' },
+  { id: 'st6', name: 'Ananya Gupta', rollNo: '06' },
+  { id: 'st7', name: 'Kabir Joshi', rollNo: '07' },
+  { id: 'st8', name: 'Meera Nair', rollNo: '08' },
+  { id: 'st9', name: 'Vivek Kumar', rollNo: '09' },
+  { id: 'st10', name: 'Pooja Reddy', rollNo: '10' },
 ];
 
 const STEP = { CLASS: 0, SUBJECT: 1, ATTENDANCE: 2, DONE: 3 };
@@ -43,10 +44,10 @@ const StudentRow = ({ student, present, onToggle }) => (
 );
 
 const TeacherAttendanceScreen = () => {
-  const [step, setStep]               = useState(STEP.CLASS);
-  const [selectedClass, setSelectedClass]     = useState(null);
+  const [step, setStep] = useState(STEP.CLASS);
+  const [selectedClass, setSelectedClass] = useState(null);
   const [selectedSubject, setSelectedSubject] = useState(null);
-  const [attendance, setAttendance]   = useState({});
+  const [attendance, setAttendance] = useState({});
 
   const initAttendance = () => {
     const init = {};
@@ -74,9 +75,12 @@ const TeacherAttendanceScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <StatusBar
+      barStyle="dark-content"
+      backgroundColor="#F4F7F5"
+      translucent={false}
+    />
       {/* Top Bar */}
       <View style={styles.topBar}>
         {step > STEP.CLASS && (
@@ -87,10 +91,10 @@ const TeacherAttendanceScreen = () => {
         <View style={{ flex: 1 }}>
           <Text style={styles.topBarTitle}>Attendance</Text>
           <Text style={styles.topBarSub}>
-            {step === STEP.CLASS      && 'Step 1 — Select a class'}
-            {step === STEP.SUBJECT    && `Step 2 — Select subject in ${selectedClass?.name}`}
+            {step === STEP.CLASS && 'Step 1 — Select a class'}
+            {step === STEP.SUBJECT && `Step 2 — Select subject in ${selectedClass?.name}`}
             {step === STEP.ATTENDANCE && `${selectedClass?.name} · ${selectedSubject?.name}`}
-            {step === STEP.DONE       && 'Session saved!'}
+            {step === STEP.DONE && 'Session saved!'}
           </Text>
         </View>
       </View>
@@ -201,7 +205,7 @@ const TeacherAttendanceScreen = () => {
 export default TeacherAttendanceScreen;
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F4F7F5', paddingTop: 8 },
+  safe: { flex: 1, backgroundColor: '#F4F7F5' },
   topBar: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 14,
@@ -210,7 +214,7 @@ const styles = StyleSheet.create({
   backBtn: { paddingRight: 4 },
   backTxt: { fontSize: 16, color: Colors.primary, fontWeight: '600' },
   topBarTitle: { fontSize: 20, fontWeight: '700', color: '#1C1C1C' },
-  topBarSub:   { fontSize: 12, color: '#6B6B6B', marginTop: 1 },
+  topBarSub: { fontSize: 12, color: '#6B6B6B', marginTop: 1 },
 
   scroll: { padding: 16, paddingBottom: 32, gap: 12 },
   stepHint: { fontSize: 14, color: '#6B6B6B', marginBottom: 4 },
@@ -222,16 +226,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
   optionEmoji: { fontSize: 22 },
-  optionName:  { flex: 1, fontSize: 16, fontWeight: '600', color: '#1C1C1C' },
-  chevron:     { fontSize: 22, color: '#C0C0C0' },
+  optionName: { flex: 1, fontSize: 16, fontWeight: '600', color: '#1C1C1C' },
+  chevron: { fontSize: 22, color: '#C0C0C0' },
 
   summaryBar: {
     flexDirection: 'row', backgroundColor: '#fff',
     borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
   summaryItem: { flex: 1, alignItems: 'center', paddingVertical: 14 },
-  summaryVal:  { fontSize: 22, fontWeight: '800' },
-  summaryLabel:{ fontSize: 12, color: '#6B6B6B', marginTop: 2 },
+  summaryVal: { fontSize: 22, fontWeight: '800' },
+  summaryLabel: { fontSize: 12, color: '#6B6B6B', marginTop: 2 },
   summaryDivider: { width: 1, backgroundColor: '#F0F0F0' },
 
   markAllRow: {
@@ -243,7 +247,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center', borderWidth: 1.5,
   },
   markAllPresent: { borderColor: Colors.primary, backgroundColor: '#E6F0EA' },
-  markAllAbsent:  { borderColor: '#D94F4F',      backgroundColor: '#FFF0F0' },
+  markAllAbsent: { borderColor: '#D94F4F', backgroundColor: '#FFF0F0' },
   markAllTxt: { fontSize: 13, fontWeight: '700', color: Colors.primary },
 
   studentScroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100, gap: 8 },
@@ -257,15 +261,15 @@ const styles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 8,
     backgroundColor: '#F0F7F3', alignItems: 'center', justifyContent: 'center',
   },
-  rollNo:      { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  rollNo: { fontSize: 12, fontWeight: '700', color: Colors.primary },
   studentName: { flex: 1, fontSize: 15, fontWeight: '500', color: '#1C1C1C' },
   toggle: {
     width: 36, height: 36, borderRadius: 50,
     alignItems: 'center', justifyContent: 'center',
   },
   togglePresent: { backgroundColor: Colors.primary },
-  toggleAbsent:  { backgroundColor: '#D94F4F' },
-  toggleTxt:     { color: '#fff', fontWeight: '800', fontSize: 14 },
+  toggleAbsent: { backgroundColor: '#D94F4F' },
+  toggleTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
 
   submitWrap: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -283,5 +287,5 @@ const styles = StyleSheet.create({
   doneWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 },
   doneEmoji: { fontSize: 64 },
   doneTitle: { fontSize: 24, fontWeight: '800', color: '#1C1C1C' },
-  doneSub:   { fontSize: 15, color: '#6B6B6B', textAlign: 'center', lineHeight: 24 },
+  doneSub: { fontSize: 15, color: '#6B6B6B', textAlign: 'center', lineHeight: 24 },
 });

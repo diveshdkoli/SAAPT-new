@@ -1,24 +1,25 @@
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, StatusBar,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme';
 
 const DEFAULTER_THRESHOLD = 75;
 
 const MY_ATTENDANCE = [
   { id: 's1', subject: 'Mathematics', present: 16, total: 18 },
-  { id: 's2', subject: 'Physics',     present: 10, total: 14 },
-  { id: 's3', subject: 'Chemistry',   present: 12, total: 14 },
-  { id: 's4', subject: 'English',     present: 8,  total: 12 },
-  { id: 's5', subject: 'Biology',     present: 11, total: 14 },
+  { id: 's2', subject: 'Physics', present: 10, total: 14 },
+  { id: 's3', subject: 'Chemistry', present: 12, total: 14 },
+  { id: 's4', subject: 'English', present: 8, total: 12 },
+  { id: 's5', subject: 'Biology', present: 11, total: 14 },
 ];
 
 const CLASS_DEFAULTERS = [
-  { name: 'Rohan Mehta',  rollNo: '03', pct: 55, subjects: ['Mathematics', 'English'] },
-  { name: 'Arjun Singh',  rollNo: '05', pct: 44, subjects: ['Mathematics', 'Physics'] },
-  { name: 'Sneha Verma',  rollNo: '04', pct: 42, subjects: ['Physics', 'Biology'] },
+  { name: 'Rohan Mehta', rollNo: '03', pct: 55, subjects: ['Mathematics', 'English'] },
+  { name: 'Arjun Singh', rollNo: '05', pct: 44, subjects: ['Mathematics', 'Physics'] },
+  { name: 'Sneha Verma', rollNo: '04', pct: 42, subjects: ['Physics', 'Biology'] },
 ];
 
 const pct = (p, t) => Math.round((p / t) * 100);
@@ -39,9 +40,12 @@ const StudentReportScreen = () => {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
+<SafeAreaView style={styles.safe} edges={['top']}>
+        <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#F4F7F5"
+        translucent={false}
+      />
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>My Report</Text>
         <View style={[styles.overallBadge, { backgroundColor: overallPct >= DEFAULTER_THRESHOLD ? '#E6F0EA' : '#FFF0F0' }]}>
@@ -127,15 +131,15 @@ const StudentReportScreen = () => {
 export default StudentReportScreen;
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F4F7F5', paddingTop: 8 },
+safe: { flex: 1, backgroundColor: '#F4F7F5' },
   topBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 14,
     backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
-  topBarTitle:  { fontSize: 20, fontWeight: '700', color: '#1C1C1C' },
+  topBarTitle: { fontSize: 20, fontWeight: '700', color: '#1C1C1C' },
   overallBadge: { borderRadius: 50, paddingHorizontal: 12, paddingVertical: 5 },
-  overallTxt:   { fontSize: 13, fontWeight: '700' },
+  overallTxt: { fontSize: 13, fontWeight: '700' },
 
   tabRow: {
     flexDirection: 'row', backgroundColor: '#fff',
@@ -147,7 +151,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#E0E0E0',
   },
   tabBtnActive: { backgroundColor: '#7C5CBF', borderColor: '#7C5CBF' },
-  tabTxt:       { fontSize: 13, fontWeight: '600', color: '#6B6B6B' },
+  tabTxt: { fontSize: 13, fontWeight: '600', color: '#6B6B6B' },
   tabTxtActive: { color: '#fff' },
 
   scroll: { padding: 16, paddingBottom: 32, gap: 12 },
@@ -158,14 +162,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
   cardAlert: { borderLeftWidth: 3, borderLeftColor: '#D94F4F' },
-  cardHeader:  { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   subjectName: { fontSize: 15, fontWeight: '700', color: '#1C1C1C' },
-  pctTxt:      { fontSize: 16, fontWeight: '800' },
-  progressBg:  { height: 7, backgroundColor: '#F0F0F0', borderRadius: 50, overflow: 'hidden' },
-  progressFill:{ height: '100%', borderRadius: 50 },
-  cardFooter:  { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  sessionTxt:  { fontSize: 12, color: '#6B6B6B' },
-  warningTxt:  { fontSize: 12, color: '#D94F4F', fontWeight: '600' },
+  pctTxt: { fontSize: 16, fontWeight: '800' },
+  progressBg: { height: 7, backgroundColor: '#F0F0F0', borderRadius: 50, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 50 },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  sessionTxt: { fontSize: 12, color: '#6B6B6B' },
+  warningTxt: { fontSize: 12, color: '#D94F4F', fontWeight: '600' },
 
   infoBox: {
     backgroundColor: '#FFF8E6', borderRadius: 10, padding: 12,
@@ -180,14 +184,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
     borderLeftWidth: 3, borderLeftColor: '#D94F4F',
   },
-  defaulterLeft:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  defaulterLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   rollBadge: {
     width: 36, height: 36, borderRadius: 8,
     backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center',
   },
-  rollNo:          { fontSize: 12, fontWeight: '700', color: '#D94F4F' },
-  defaulterName:   { fontSize: 15, fontWeight: '600', color: '#1C1C1C' },
-  defaulterSubs:   { fontSize: 12, color: '#6B6B6B', marginTop: 2 },
+  rollNo: { fontSize: 12, fontWeight: '700', color: '#D94F4F' },
+  defaulterName: { fontSize: 15, fontWeight: '600', color: '#1C1C1C' },
+  defaulterSubs: { fontSize: 12, color: '#6B6B6B', marginTop: 2 },
   defaulterBadge: {
     backgroundColor: '#FFF0F0', borderRadius: 50,
     paddingHorizontal: 12, paddingVertical: 5,
