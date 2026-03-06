@@ -1,217 +1,247 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  StatusBar,
-  ActivityIndicator,
-  RefreshControl,
-  TouchableOpacity,
+  View, Text, ScrollView, StyleSheet, StatusBar,
+  ActivityIndicator, RefreshControl, TouchableOpacity,
+  Animated, Dimensions,
 } from 'react-native';
 import {
-  doc,
-  getDoc,
-  collection,
-  query,
-  where,
-  getDocs,
+  doc, getDoc, collection, query, where, getDocs,
 } from 'firebase/firestore';
-import { auth, db } from '../../services/firebase/config'; // adjust path as needed
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from '../../services/firebase/config';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const THRESHOLD = 75; // low attendance warning threshold
+const THRESHOLD = 75;
+const { width: SW } = Dimensions.get('window');
 
-// ─── Color Palette (matches entire SAAPT app) ─────────────────────────────────
-const COLORS = {
-  primary:        '#4F46E5',
-  primaryLight:   '#EEF2FF',
-  secondary:      '#06B6D4',
-  secondaryLight: '#ECFEFF',
-  success:        '#10B981',
-  successLight:   '#D1FAE5',
-  danger:         '#EF4444',
-  dangerLight:    '#FEF2F2',
-  warning:        '#F59E0B',
-  warningLight:   '#FEF3C7',
-  background:     '#F8F9FE',
-  card:           '#FFFFFF',
-  text:           '#1E1B4B',
-  textSecondary:  '#6B7280',
-  textLight:      '#9CA3AF',
-  border:         '#E5E7EB',
-  shadow:         '#1E1B4B',
+const C = {
+  primary:     '#5B21B6',
+  primarySoft: '#EDE9FE',
+  accent:      '#8B5CF6',
+  accentSoft:  '#F3E8FF',
+  teal:        '#7C3AED',
+  tealSoft:    '#F5F3FF',
+  success:     '#16A34A',
+  successSoft: '#DCFCE7',
+  danger:      '#DC2626',
+  dangerSoft:  '#FEE2E2',
+  warning:     '#D97706',
+  warningSoft: '#FEF3C7',
+  bg:          '#F6F5FF',
+  card:        '#FFFFFF',
+  text:        '#1E1B4B',
+  textSub:     '#4C1D95',
+  textMuted:   '#A78BFA',
+  border:      '#E9D5FF',
 };
+
+const SUBJECT_COLORS = [
+  '#E94560', '#0F9B8E', '#6366F1', '#F59E0B', '#10B981', '#8B5CF6',
+];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const pct = (present, total) =>
-  total === 0 ? 0 : Math.round((present / total) * 100);
-
+const pct = (p, t) => (t === 0 ? 0 : Math.round((p / t) * 100));
+const todayStr = () => new Date().toISOString().split('T')[0];
 const getGreeting = () => {
   const h = new Date().getHours();
-  if (h < 12) return 'Good Morning';
-  if (h < 17) return 'Good Afternoon';
-  return 'Good Evening';
+  if (h < 12) return { msg: 'Good Morning',   emoji: '☀️' };
+  if (h < 17) return { msg: 'Good Afternoon', emoji: '🌤️' };
+  return        { msg: 'Good Evening',   emoji: '🌙' };
 };
-
 const getInitials = (name = '') =>
-  name.split(' ').slice(0, 2).map((n) => n[0]?.toUpperCase()).join('') || 'S';
-
+  name.split(' ').slice(0, 2).map(n => n[0]?.toUpperCase()).join('') || 'S';
 const formatDate = () =>
   new Date().toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-/** Circular-style overall attendance card */
-const OverallCard = ({ totalLectures, present, absent, percentage }) => {
-  const color = percentage >= THRESHOLD ? COLORS.success : COLORS.danger;
-
+// ─── Animated Progress Bar ────────────────────────────────────────────────────
+const AnimatedBar = ({ percentage, color, delay = 0 }) => {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: percentage, duration: 800, delay, useNativeDriver: false,
+    }).start();
+  }, [percentage]);
+  const width = anim.interpolate({
+    inputRange: [0, 100], outputRange: ['0%', '100%'], extrapolate: 'clamp',
+  });
   return (
-    <View style={styles.overallCard}>
-      {/* Big percentage circle */}
-      <View style={[styles.pctCircle, { borderColor: color }]}>
-        <Text style={[styles.pctCircleValue, { color }]}>{percentage}%</Text>
-        <Text style={styles.pctCircleLabel}>Overall</Text>
-      </View>
+    <View style={bar.bg}>
+      <Animated.View style={[bar.fill, { width, backgroundColor: color }]} />
+      <View style={[bar.marker, { left: `${THRESHOLD}%` }]} />
+    </View>
+  );
+};
+const bar = StyleSheet.create({
+  bg:     { height: 8, backgroundColor: C.border, borderRadius: 4, overflow: 'visible', position: 'relative', marginVertical: 6 },
+  fill:   { height: 8, borderRadius: 4 },
+  marker: { position: 'absolute', top: -4, width: 2, height: 16, backgroundColor: C.warning, borderRadius: 1 },
+});
 
-      {/* Stats grid */}
-      <View style={styles.overallStats}>
-        <View style={styles.overallStatItem}>
-          <Text style={styles.overallStatValue}>{totalLectures}</Text>
-          <Text style={styles.overallStatLabel}>Total</Text>
-        </View>
-        <View style={styles.overallStatDivider} />
-        <View style={styles.overallStatItem}>
-          <Text style={[styles.overallStatValue, { color: COLORS.success }]}>{present}</Text>
-          <Text style={styles.overallStatLabel}>Present</Text>
-        </View>
-        <View style={styles.overallStatDivider} />
-        <View style={styles.overallStatItem}>
-          <Text style={[styles.overallStatValue, { color: COLORS.danger }]}>{absent}</Text>
-          <Text style={styles.overallStatLabel}>Absent</Text>
-        </View>
-      </View>
+// ─── Circular Progress ────────────────────────────────────────────────────────
+const CirclePct = ({ percentage, size = 120, strokeWidth = 10 }) => {
+  const anim   = useRef(new Animated.Value(0)).current;
+  const isGood = percentage >= THRESHOLD;
+  const color  = isGood ? C.success : C.danger;
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: percentage, duration: 1000, useNativeDriver: false,
+    }).start();
+  }, [percentage]);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{
+        position: 'absolute', width: size, height: size, borderRadius: size / 2,
+        borderWidth: strokeWidth, borderColor: C.border,
+      }} />
+      <View style={{
+        position: 'absolute', width: size, height: size, borderRadius: size / 2,
+        borderWidth: strokeWidth, borderColor: color,
+        transform: [{ rotate: '-90deg' }],
+        opacity: percentage > 0 ? 1 : 0,
+        borderTopColor:    percentage >= 25  ? color : 'transparent',
+        borderRightColor:  percentage >= 50  ? color : 'transparent',
+        borderBottomColor: percentage >= 75  ? color : 'transparent',
+        borderLeftColor:   percentage >= 100 ? color : 'transparent',
+      }} />
+      <Text style={{ fontSize: 26, fontWeight: '900', color, letterSpacing: -1 }}>
+        {percentage}%
+      </Text>
+      <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600', marginTop: 2 }}>
+        Overall
+      </Text>
+    </View>
+  );
+};
 
-      {/* Progress bar */}
-      <View style={styles.overallProgressBg}>
-        <View
-          style={[
-            styles.overallProgressFill,
-            {
-              width:           `${percentage}%`,
-              backgroundColor: color,
-            },
-          ]}
-        />
-      </View>
-      <View style={styles.overallProgressLabels}>
-        <Text style={styles.overallProgressMin}>0%</Text>
-        <View style={[styles.thresholdMarker, { left: `${THRESHOLD}%` }]}>
-          <Text style={styles.thresholdLabel}>{THRESHOLD}%</Text>
+// ─── Header ───────────────────────────────────────────────────────────────────
+const HomeHeader = ({ name, className, rollNumber }) => {
+  const { msg, emoji } = getGreeting();
+  return (
+    <View style={s.header}>
+      <View style={s.headerCircle1} />
+      <View style={s.headerCircle2} />
+      <View style={s.headerRow}>
+        <View style={s.headerLeft}>
+          <Text style={s.headerGreeting}>{emoji} {msg}</Text>
+          <Text style={s.headerName}>{name || 'Student'}</Text>
+          <View style={s.headerChips}>
+            {!!className  && <View style={s.chip}><Text style={s.chipTxt}>🏫 {className}</Text></View>}
+            {!!rollNumber && <View style={s.chip}><Text style={s.chipTxt}>🎓 Roll {rollNumber}</Text></View>}
+          </View>
         </View>
-        <Text style={styles.overallProgressMax}>100%</Text>
+        <View style={s.avatar}>
+          <Text style={s.avatarTxt}>{getInitials(name)}</Text>
+        </View>
+      </View>
+      <View style={s.datePill}>
+        <Text style={s.datePillTxt}>📅 {formatDate()}</Text>
       </View>
     </View>
   );
 };
 
-/** Single subject attendance row */
-const SubjectRow = ({ subjectName, present, total, index }) => {
-  const percentage  = pct(present, total);
-  const isLow       = percentage < THRESHOLD;
-  const barColor    = isLow ? COLORS.danger : COLORS.success;
-
-  const SUBJECT_COLORS = [
-    COLORS.primary, COLORS.secondary, COLORS.success,
-    COLORS.warning, '#EC4899', '#8B5CF6',
-  ];
-  const dotColor = SUBJECT_COLORS[index % SUBJECT_COLORS.length];
-
+// ─── Overall Card ─────────────────────────────────────────────────────────────
+const OverallCard = ({ present, total, percentage }) => {
+  const isGood = percentage >= THRESHOLD;
   return (
-    <View style={[styles.subjectRow, isLow && styles.subjectRowLow]}>
-      {/* Color dot */}
-      <View style={[styles.subjectDot, { backgroundColor: dotColor }]} />
-
-      <View style={styles.subjectInfo}>
-        {/* Top: name + percentage */}
-        <View style={styles.subjectTopRow}>
-          <Text style={styles.subjectName} numberOfLines={1}>{subjectName}</Text>
-          <View style={[
-            styles.subjectPctBadge,
-            { backgroundColor: isLow ? COLORS.dangerLight : COLORS.successLight },
-          ]}>
-            {isLow && <Text style={styles.subjectWarnIcon}>⚠️ </Text>}
-            <Text style={[
-              styles.subjectPctText,
-              { color: isLow ? COLORS.danger : COLORS.success },
-            ]}>
-              {percentage}%
-            </Text>
-          </View>
+    <View style={s.card}>
+      <View style={s.cardTitleRow}>
+        <View style={[s.cardIcon, { backgroundColor: C.tealSoft }]}>
+          <Text style={s.cardIconTxt}>📊</Text>
         </View>
-
-        {/* Progress bar */}
-        <View style={styles.subjectProgressBg}>
-          <View style={[
-            styles.subjectProgressFill,
-            { width: `${percentage}%`, backgroundColor: barColor },
-          ]} />
-          {/* Threshold line */}
-          <View style={[styles.subjectThresholdLine, { left: `${THRESHOLD}%` }]} />
+        <View>
+          <Text style={s.cardTitle}>Overall Attendance</Text>
+          <Text style={s.cardSub}>All subjects combined</Text>
         </View>
-
-        {/* Sessions info */}
-        <Text style={styles.subjectSessions}>
-          {present} / {total} lectures
+      </View>
+      <View style={s.overallBody}>
+        <CirclePct percentage={percentage} size={110} strokeWidth={9} />
+        <View style={s.overallStats}>
+          {[
+            { label: 'Total Classes', val: total,           clr: C.text    },
+            { label: 'Present',       val: present,         clr: C.success },
+            { label: 'Absent',        val: total - present, clr: C.danger  },
+          ].map(item => (
+            <View key={item.label} style={s.statItem}>
+              <View style={[s.statDot, { backgroundColor: item.clr }]} />
+              <View>
+                <Text style={[s.statVal, { color: item.clr }]}>{item.val}</Text>
+                <Text style={s.statLbl}>{item.label}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+      <View style={[s.statusStrip, { backgroundColor: isGood ? C.successSoft : C.dangerSoft }]}>
+        <Text style={[s.statusStripTxt, { color: isGood ? C.success : C.danger }]}>
+          {isGood
+            ? `✓  You meet the ${THRESHOLD}% attendance requirement!`
+            : `⚠  Below ${THRESHOLD}% minimum — please attend more classes.`}
         </Text>
       </View>
     </View>
   );
 };
 
-/** Low attendance warning card */
-const LowAttendanceWarning = ({ subjects }) => {
-  if (subjects.length === 0) return null;
-
+// ─── Subject Row ──────────────────────────────────────────────────────────────
+const SubjectRow = ({ subjectName, present, total, index }) => {
+  const p      = pct(present, total);
+  const isLow  = p < THRESHOLD;
+  const color  = isLow ? C.danger : C.success;
+  const dot    = SUBJECT_COLORS[index % SUBJECT_COLORS.length];
+  const needed = isLow
+    ? Math.max(0, Math.ceil((THRESHOLD * total - 100 * present) / (100 - THRESHOLD)))
+    : 0;
   return (
-    <View style={styles.warningCard}>
-      <View style={styles.warningHeader}>
-        <Text style={styles.warningHeaderIcon}>⚠️</Text>
-        <View>
-          <Text style={styles.warningHeaderTitle}>Low Attendance Alert</Text>
-          <Text style={styles.warningHeaderSubtitle}>
-            {subjects.length} subject{subjects.length > 1 ? 's' : ''} below {THRESHOLD}%
-          </Text>
+    <View style={[s.subjectRow, isLow && s.subjectRowLow]}>
+      {isLow && <View style={[s.subjectBorder, { backgroundColor: C.danger }]} />}
+      <View style={[s.subjectDot, { backgroundColor: dot }]} />
+      <View style={s.subjectInfo}>
+        <View style={s.subjectTopRow}>
+          <Text style={s.subjectName} numberOfLines={1}>{subjectName}</Text>
+          <View style={[s.pctBadge, { backgroundColor: isLow ? C.dangerSoft : C.successSoft }]}>
+            {isLow && <Text style={s.warnMini}>⚠ </Text>}
+            <Text style={[s.pctBadgeTxt, { color }]}>{p}%</Text>
+          </View>
+        </View>
+        <AnimatedBar percentage={p} color={color} delay={index * 80} />
+        <View style={s.subjectBottomRow}>
+          <Text style={s.subjectSessions}>{present}/{total} classes</Text>
+          {isLow && needed > 0 && (
+            <Text style={s.subjectNeeded}>Need {needed} more to reach {THRESHOLD}%</Text>
+          )}
         </View>
       </View>
+    </View>
+  );
+};
 
-      {subjects.map((sub, i) => {
-        const percentage   = pct(sub.present, sub.total);
-        const lecturesNeeded = Math.max(
-          0,
-          Math.ceil((THRESHOLD / 100 * sub.total - sub.present) / (1 - THRESHOLD / 100))
-        );
-
+// ─── Today Card ───────────────────────────────────────────────────────────────
+const TodayCard = ({ records }) => {
+  if (!records || records.length === 0) return null;
+  return (
+    <View style={s.card}>
+      <View style={s.cardTitleRow}>
+        <View style={[s.cardIcon, { backgroundColor: C.accentSoft }]}>
+          <Text style={s.cardIconTxt}>✅</Text>
+        </View>
+        <View>
+          <Text style={s.cardTitle}>Today's Attendance</Text>
+          <Text style={s.cardSub}>Your status for today</Text>
+        </View>
+      </View>
+      {records.map((r, i) => {
+        const isPresent = r.status === 'present';
         return (
-          <View key={sub.subjectId} style={[
-            styles.warningItem,
-            i < subjects.length - 1 && styles.warningItemBorder,
-          ]}>
-            <View style={styles.warningItemLeft}>
-              <Text style={styles.warningSubjectName}>{sub.subjectName}</Text>
-              <Text style={styles.warningDetail}>
-                {sub.present} / {sub.total} lectures attended
+          <View key={`${r.subjectId}_${i}`} style={[s.todayRow, i < records.length - 1 && s.rowDivider]}>
+            <View style={[s.todayDot, { backgroundColor: SUBJECT_COLORS[i % SUBJECT_COLORS.length] }]} />
+            <Text style={s.todaySubject}>{r.subjectName}</Text>
+            <View style={[s.todayBadge, { backgroundColor: isPresent ? C.successSoft : C.dangerSoft }]}>
+              <Text style={[s.todayBadgeTxt, { color: isPresent ? C.success : C.danger }]}>
+                {isPresent ? '✓ Present' : '✗ Absent'}
               </Text>
-              {lecturesNeeded > 0 && (
-                <Text style={styles.warningNeeded}>
-                  Need {lecturesNeeded} more consecutive lectures to reach {THRESHOLD}%
-                </Text>
-              )}
-            </View>
-            <View style={styles.warningPctBadge}>
-              <Text style={styles.warningPct}>{percentage}%</Text>
             </View>
           </View>
         );
@@ -222,198 +252,228 @@ const LowAttendanceWarning = ({ subjects }) => {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 const StudentHomeScreen = ({ navigation }) => {
-  const [studentName, setStudentName] = useState('');
-  const [className,   setClassName]   = useState('');
-  const [rollNumber,  setRollNumber]  = useState('');
-  const [classId,     setClassId]     = useState('');
 
-  // Attendance data
-  const [subjectStats,  setSubjectStats]  = useState([]); // [{subjectId, subjectName, present, total}]
-  const [overallStats,  setOverallStats]  = useState({ total: 0, present: 0, absent: 0, pct: 0 });
-  const [lowSubjects,   setLowSubjects]   = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [name,         setName]         = useState('');
+  const [className,    setClassName]    = useState('');
+  const [rollNumber,   setRollNumber]   = useState('');
+  const [overall,      setOverall]      = useState({ present: 0, total: 0, pct: 0 });
+  const [subjectStats, setSubjectStats] = useState([]);
+  const [todayRecords, setTodayRecords] = useState([]);
+  const [error,        setError]        = useState('');
 
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Step 1 — Fetch student profile from users/{uid}
-  // ─────────────────────────────────────────────────────────────────────────
-  const fetchStudentProfile = async (uid) => {
-    const snap = await getDoc(doc(db, 'users', uid));
-    if (!snap.exists()) return null;
-    const data = snap.data();
-    setStudentName(data.name      ?? '');
-    setClassName(data.className   ?? data.classId ?? '');
-    setRollNumber(data.rollNumber ?? data.roll    ?? '');
-    return data.classId ?? null;
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Step 2 — Fetch all attendance docs for this class
-  //          then filter records where studentId == uid
-  //          group by subjectId to compute present/total per subject
-  // ─────────────────────────────────────────────────────────────────────────
-  const fetchAttendance = async (cId, uid) => {
-    // All attendance docs for this class
-    const attSnap = await getDocs(
-      query(collection(db, 'attendance'), where('classId', '==', cId))
-    );
-    const attDocs = attSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-    // Group by subjectId
-    // subjectMap: { subjectId: { subjectName, present, total } }
-    const subjectMap = {};
-
-    attDocs.forEach((att) => {
-      const sid   = att.subjectId;
-      const sName = att.subjectName ?? sid;
-
-      if (!subjectMap[sid]) {
-        subjectMap[sid] = { subjectId: sid, subjectName: sName, present: 0, total: 0 };
-      }
-
-      // Find this student's record in the session
-      const myRecord = (att.records ?? []).find((r) => r.studentId === uid);
-      if (myRecord) {
-        subjectMap[sid].total += 1;
-        if (myRecord.status === 'present') subjectMap[sid].present += 1;
-      }
-    });
-
-    const stats = Object.values(subjectMap)
-      .sort((a, b) => a.subjectName.localeCompare(b.subjectName));
-
-    // Overall totals
-    const totalPresent  = stats.reduce((s, x) => s + x.present, 0);
-    const totalLectures = stats.reduce((s, x) => s + x.total,   0);
-    const totalAbsent   = totalLectures - totalPresent;
-    const overallPct    = pct(totalPresent, totalLectures);
-
-    // Low attendance subjects
-    const low = stats.filter((s) => s.total > 0 && pct(s.present, s.total) < THRESHOLD);
-
-    setSubjectStats(stats);
-    setOverallStats({
-      total:   totalLectures,
-      present: totalPresent,
-      absent:  totalAbsent,
-      pct:     overallPct,
-    });
-    setLowSubjects(low);
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Load all
-  // ─────────────────────────────────────────────────────────────────────────
-  const loadData = useCallback(async () => {
+  // ── Core fetch — receives uid directly (no race condition) ─────────────────
+  const fetchData = useCallback(async (uid) => {
     try {
-      const uid = auth.currentUser?.uid;
-      if (!uid) return;
+      setError('');
+      console.log('🔍 [HomeScreen] Fetching for uid:', uid);
 
-      const cId = await fetchStudentProfile(uid);
-      if (cId) {
-        setClassId(cId);
-        await fetchAttendance(cId, uid);
+      // ── 1. User profile ────────────────────────────────────────────────────
+      const userSnap = await getDoc(doc(db, 'users', uid));
+      if (!userSnap.exists()) {
+        console.warn('⚠️ [HomeScreen] No user doc found for uid:', uid);
+        setError('User profile not found.');
+        return;
       }
+
+      const userData = userSnap.data();
+      console.log('👤 [HomeScreen] userData:', JSON.stringify(userData));
+
+      const classId  = userData.classId   ?? null;
+      const uName    = userData.name      ?? '';
+      const uClass   = userData.className ?? '';
+      const uRoll    = userData.rollNumber ?? userData.roll ?? '';
+
+      setName(uName);
+      setRollNumber(uRoll);
+
+      if (!classId) {
+        console.warn('⚠️ [HomeScreen] classId missing on user doc');
+        setError('No class assigned to your account.');
+        return;
+      }
+      console.log('🏫 [HomeScreen] classId:', classId);
+
+      // ── 2. Class name (fallback) ───────────────────────────────────────────
+      let resolvedClassName = uClass;
+      if (!resolvedClassName) {
+        const classSnap = await getDoc(doc(db, 'classes', classId));
+        if (classSnap.exists()) resolvedClassName = classSnap.data().name ?? '';
+      }
+      setClassName(resolvedClassName);
+      console.log('🏫 [HomeScreen] className:', resolvedClassName);
+
+      // ── 3. All attendance sessions for this class ──────────────────────────
+      const attSnap = await getDocs(
+        query(collection(db, 'attendance'), where('classId', '==', classId))
+      );
+      console.log('📋 [HomeScreen] attendance docs count:', attSnap.size);
+
+      if (attSnap.empty) {
+        setOverall({ present: 0, total: 0, pct: 0 });
+        setSubjectStats([]);
+        setTodayRecords([]);
+        return;
+      }
+
+      const today      = todayStr();
+      const subjectMap = {};
+      const todayList  = [];
+
+      // ── 4. Scan each session doc ───────────────────────────────────────────
+      attSnap.docs.forEach(sessionDoc => {
+        const d = sessionDoc.data();
+
+        const sid   = d.subjectId   ?? d.subject   ?? 'unknown';
+        const sName = d.subjectName ?? d.subject   ?? 'Unknown Subject';
+        const date  = d.date        ?? '';
+
+        // Normalise records field — could be array or Firestore map
+        let records = d.records ?? d.attendance ?? [];
+        if (!Array.isArray(records)) records = Object.values(records);
+
+        console.log(
+          `📄 [HomeScreen] session ${sessionDoc.id} | subject: ${sName} | date: ${date} | records count: ${records.length}`
+        );
+
+        // Find this student's entry
+        // Try both 'studentId' and 'uid' field names for safety
+        const myRecord = records.find(
+          r => r.studentId === uid || r.uid === uid || r.id === uid
+        );
+
+        if (!myRecord) {
+          console.log(`   ↳ uid ${uid} NOT found in records`);
+          return;
+        }
+
+        const status = (myRecord.status ?? '').toLowerCase();
+        console.log(`   ↳ found record: status = ${status}`);
+
+        if (!subjectMap[sid]) {
+          subjectMap[sid] = { subjectId: sid, subjectName: sName, present: 0, total: 0 };
+        }
+        subjectMap[sid].total += 1;
+        if (status === 'present') subjectMap[sid].present += 1;
+
+        if (date === today) {
+          todayList.push({ subjectId: sid, subjectName: sName, status });
+        }
+      });
+
+      // ── 5. Final stats ─────────────────────────────────────────────────────
+      const stats = Object.values(subjectMap)
+        .sort((a, b) => a.subjectName.localeCompare(b.subjectName));
+
+      const totalPresent = stats.reduce((s, x) => s + x.present, 0);
+      const totalClasses = stats.reduce((s, x) => s + x.total,   0);
+      const overallPct   = pct(totalPresent, totalClasses);
+
+      console.log('✅ [HomeScreen] stats:', stats);
+      console.log(`✅ [HomeScreen] overall: ${totalPresent}/${totalClasses} = ${overallPct}%`);
+
+      setSubjectStats(stats);
+      setOverall({ present: totalPresent, total: totalClasses, pct: overallPct });
+      setTodayRecords(todayList);
+
     } catch (err) {
-      console.error('StudentHomeScreen loadData error:', err);
+      console.error('❌ [HomeScreen] fetchData error:', err);
+      setError('Something went wrong. Pull down to retry.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // ── Wait for auth state before fetching ─────────────────────────────────
+  // This fixes the race condition where auth.currentUser is null on mount
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        fetchData(user.uid);
+      } else {
+        console.warn('⚠️ [HomeScreen] No authenticated user');
+        setLoading(false);
+        setError('Not logged in.');
+      }
+    });
+    return () => unsubscribe();
+  }, [fetchData]);
 
-  const onRefresh = () => { setRefreshing(true); loadData(); };
+  const onRefresh = () => {
+    setRefreshing(true);
+    const user = auth.currentUser;
+    if (user) fetchData(user.uid);
+    else setRefreshing(false);
+  };
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+    <View style={s.container}>
+      <StatusBar barStyle="light-content" backgroundColor={C.primary} />
 
-      {/* ══════════════════════════════
-          HEADER — Welcome Section
-      ══════════════════════════════ */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerTextGroup}>
-            <Text style={styles.greeting}>{getGreeting()} 👋</Text>
-            <Text style={styles.studentName}>{studentName || 'Student'}</Text>
-            <View style={styles.headerMeta}>
-              {className  ? <View style={styles.metaPill}><Text style={styles.metaPillText}>🏫 {className}</Text></View>  : null}
-              {rollNumber ? <View style={styles.metaPill}><Text style={styles.metaPillText}>🎓 Roll {rollNumber}</Text></View> : null}
-            </View>
-          </View>
-
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{getInitials(studentName)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.dateChip}>
-          <Text style={styles.dateChipText}>📅  {formatDate()}</Text>
-        </View>
-      </View>
-
-      {/* ══════════════════════════════
-          BODY
-      ══════════════════════════════ */}
       {loading ? (
-        <View style={styles.centerLoader}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.centerLoaderTxt}>Loading your attendance…</Text>
+        <View style={s.loader}>
+          <ActivityIndicator size="large" color={C.teal} />
+          <Text style={s.loaderTxt}>Loading your dashboard…</Text>
         </View>
       ) : (
         <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[COLORS.primary]}
-              tintColor={COLORS.primary}
+              colors={[C.teal]}
+              tintColor={C.teal}
             />
           }
         >
-          {/* ── Overall Attendance Card ── */}
-          <Text style={styles.sectionTitle}>Overall Attendance</Text>
-          {overallStats.total === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyTitle}>No Attendance Data Yet</Text>
-              <Text style={styles.emptySubText}>
-                Your teacher hasn't recorded any attendance sessions yet.
-              </Text>
-            </View>
-          ) : (
-            <OverallCard
-              totalLectures={overallStats.total}
-              present={overallStats.present}
-              absent={overallStats.absent}
-              percentage={overallStats.pct}
-            />
-          )}
+          <HomeHeader name={name} className={className} rollNumber={rollNumber} />
 
-          {/* ── Low Attendance Warning ── */}
-          {lowSubjects.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { marginTop: 8 }]}>
-                Attendance Alerts
-              </Text>
-              <LowAttendanceWarning subjects={lowSubjects} />
-            </>
-          )}
+          <View style={s.body}>
 
-          {/* ── Subject Wise Attendance ── */}
-          {subjectStats.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { marginTop: 8 }]}>
-                Subject-wise Attendance
-              </Text>
-              <View style={styles.subjectCard}>
+            {/* Error banner */}
+            {!!error && (
+              <View style={s.errorCard}>
+                <Text style={s.errorTxt}>⚠️ {error}</Text>
+              </View>
+            )}
+
+            {/* Overall Attendance */}
+            {overall.total === 0 ? (
+              <View style={s.emptyCard}>
+                <Text style={s.emptyIcon}>📋</Text>
+                <Text style={s.emptyTitle}>No Attendance Data Yet</Text>
+                <Text style={s.emptySub}>
+                  Your teacher hasn't recorded any sessions yet.{'\n'}
+                  Check back after your first class.
+                </Text>
+              </View>
+            ) : (
+              <OverallCard
+                present={overall.present}
+                total={overall.total}
+                percentage={overall.pct}
+              />
+            )}
+
+            {/* Today's Attendance */}
+            <TodayCard records={todayRecords} />
+
+            {/* Subject-wise Attendance */}
+            {subjectStats.length > 0 && (
+              <View style={s.card}>
+                <View style={s.cardTitleRow}>
+                  <View style={[s.cardIcon, { backgroundColor: '#EEF2FF' }]}>
+                    <Text style={s.cardIconTxt}>📚</Text>
+                  </View>
+                  <View>
+                    <Text style={s.cardTitle}>Subject-wise Attendance</Text>
+                    <Text style={s.cardSub}>75% threshold marked ▲</Text>
+                  </View>
+                </View>
                 {subjectStats.map((sub, i) => (
                   <View key={sub.subjectId}>
                     <SubjectRow
@@ -422,29 +482,37 @@ const StudentHomeScreen = ({ navigation }) => {
                       total={sub.total}
                       index={i}
                     />
-                    {i < subjectStats.length - 1 && (
-                      <View style={styles.subjectDivider} />
-                    )}
+                    {i < subjectStats.length - 1 && <View style={s.rowDivider} />}
                   </View>
                 ))}
+                {subjectStats.every(x => pct(x.present, x.total) >= THRESHOLD) && (
+                  <View style={s.allGoodStrip}>
+                    <Text style={s.allGoodTxt}>
+                      🎉  Excellent! You're above {THRESHOLD}% in all subjects.
+                    </Text>
+                  </View>
+                )}
               </View>
-            </>
-          )}
+            )}
 
-          {/* ── All good banner ── */}
-          {subjectStats.length > 0 && lowSubjects.length === 0 && (
-            <View style={styles.allGoodBanner}>
-              <Text style={styles.allGoodIcon}>🎉</Text>
-              <View>
-                <Text style={styles.allGoodTitle}>Great Attendance!</Text>
-                <Text style={styles.allGoodSub}>
-                  You're above {THRESHOLD}% in all subjects. Keep it up!
-                </Text>
+            {/* View Full Report Button */}
+            <TouchableOpacity
+              style={s.reportBtn}
+              activeOpacity={0.82}
+              onPress={() => navigation?.navigate('Report')}
+            >
+              <View style={s.reportBtnInner}>
+                <Text style={s.reportBtnIcon}>📈</Text>
+                <View>
+                  <Text style={s.reportBtnTitle}>View Full Report</Text>
+                  <Text style={s.reportBtnSub}>Detailed analysis & defaulter list</Text>
+                </View>
               </View>
-            </View>
-          )}
+              <Text style={s.reportBtnArrow}>→</Text>
+            </TouchableOpacity>
 
-          <View style={{ height: 32 }} />
+            <View style={{ height: 32 }} />
+          </View>
         </ScrollView>
       )}
     </View>
@@ -452,275 +520,114 @@ const StudentHomeScreen = ({ navigation }) => {
 };
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
 
-  // ── Header ──────────────────────────────────────────────────────────────────
   header: {
-    backgroundColor:         COLORS.primary,
-    paddingTop:              52,
-    paddingHorizontal:       20,
-    paddingBottom:           28,
-    borderBottomLeftRadius:  28,
-    borderBottomRightRadius: 28,
+    backgroundColor: C.primary,
+    paddingTop: 54, paddingHorizontal: 20, paddingBottom: 28,
+    overflow: 'hidden',
   },
-  headerTop: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    alignItems:     'flex-start',
-    marginBottom:   14,
+  headerCircle1: {
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.04)', top: -60, right: -40,
   },
-  headerTextGroup: { flex: 1, marginRight: 12 },
-  greeting:    { fontSize: 14, color: 'rgba(255,255,255,0.75)', letterSpacing: 0.3 },
-  studentName: { fontSize: 24, fontWeight: '700', color: '#FFFFFF', marginTop: 3 },
-  headerMeta:  { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
-  metaPill: {
-    backgroundColor:   'rgba(255,255,255,0.18)',
-    borderRadius:      20,
-    paddingHorizontal: 10,
-    paddingVertical:   4,
+  headerCircle2: {
+    position: 'absolute', width: 120, height: 120, borderRadius: 60,
+    backgroundColor: 'rgba(233,69,96,0.15)', bottom: -20, left: 10,
   },
-  metaPillText: { fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
-  avatarCircle: {
-    width:           50,
-    height:          50,
-    borderRadius:    25,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems:      'center',
-    justifyContent:  'center',
-    borderWidth:     2,
-    borderColor:     'rgba(255,255,255,0.4)',
+  headerRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  headerLeft:     { flex: 1, marginRight: 12 },
+  headerGreeting: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 4 },
+  headerName:     { fontSize: 26, fontWeight: '900', color: '#fff', letterSpacing: -0.5, marginBottom: 8 },
+  headerChips:    { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  chip:           { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  chipTxt:        { fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+  avatar: {
+    width: 54, height: 54, borderRadius: 27,
+    backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.3)',
   },
-  avatarText: { color: '#FFFFFF', fontWeight: '700', fontSize: 17 },
-  dateChip: {
-    backgroundColor:   'rgba(255,255,255,0.15)',
-    borderRadius:      20,
-    paddingVertical:   6,
-    paddingHorizontal: 14,
-    alignSelf:         'flex-start',
-  },
-  dateChipText: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '500' },
+  avatarTxt:    { color: '#fff', fontWeight: '900', fontSize: 18 },
+  datePill:     { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14, alignSelf: 'flex-start' },
+  datePillTxt:  { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '500' },
 
-  // ── Scroll ───────────────────────────────────────────────────────────────────
-  scroll:        { flex: 1 },
-  scrollContent: { paddingHorizontal: 18, paddingTop: 24 },
+  body: { paddingHorizontal: 16, paddingTop: 16 },
 
-  // Section title
-  sectionTitle: {
-    fontSize:     17,
-    fontWeight:   '700',
-    color:        COLORS.text,
-    marginBottom: 14,
-    marginTop:    4,
+  card: {
+    backgroundColor: C.card, borderRadius: 20, padding: 16, marginBottom: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
   },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  cardIcon:     { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  cardIconTxt:  { fontSize: 18 },
+  cardTitle:    { fontSize: 15, fontWeight: '700', color: C.text },
+  cardSub:      { fontSize: 11, color: C.textMuted, marginTop: 1 },
 
-  // ── Overall Card ─────────────────────────────────────────────────────────────
-  overallCard: {
-    backgroundColor: COLORS.card,
-    borderRadius:    20,
-    padding:         20,
-    marginBottom:    22,
-    alignItems:      'center',
-    shadowColor:     COLORS.shadow,
-    shadowOffset:    { width: 0, height: 4 },
-    shadowOpacity:   0.08,
-    shadowRadius:    12,
-    elevation:       5,
-  },
-  pctCircle: {
-    width:          100,
-    height:         100,
-    borderRadius:   50,
-    borderWidth:    5,
-    alignItems:     'center',
-    justifyContent: 'center',
-    marginBottom:   20,
-  },
-  pctCircleValue: { fontSize: 26, fontWeight: '800', letterSpacing: -1 },
-  pctCircleLabel: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '600', marginTop: 2 },
+  overallBody:  { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 14 },
+  overallStats: { flex: 1, gap: 8 },
+  statItem:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statDot:      { width: 8, height: 8, borderRadius: 4 },
+  statVal:      { fontSize: 18, fontWeight: '800' },
+  statLbl:      { fontSize: 11, color: C.textMuted },
+  statusStrip:  { borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginTop: 4 },
+  statusStripTxt: { fontSize: 12, fontWeight: '600', lineHeight: 18 },
 
-  overallStats: {
-    flexDirection:   'row',
-    width:           '100%',
-    justifyContent:  'space-around',
-    marginBottom:    18,
-  },
-  overallStatItem:    { alignItems: 'center', flex: 1 },
-  overallStatValue:   { fontSize: 22, fontWeight: '800', color: COLORS.text },
-  overallStatLabel:   { fontSize: 11, color: COLORS.textSecondary, fontWeight: '500', marginTop: 2 },
-  overallStatDivider: { width: 1, backgroundColor: COLORS.border, alignSelf: 'stretch' },
-
-  overallProgressBg: {
-    width:           '100%',
-    height:          8,
-    backgroundColor: COLORS.border,
-    borderRadius:    4,
-    overflow:        'hidden',
-    marginBottom:    4,
-  },
-  overallProgressFill:   { height: 8, borderRadius: 4 },
-  overallProgressLabels: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', position: 'relative' },
-  overallProgressMin:    { fontSize: 10, color: COLORS.textLight },
-  overallProgressMax:    { fontSize: 10, color: COLORS.textLight },
-  thresholdMarker: {
-    position:   'absolute',
-    top:        -22,
-    transform:  [{ translateX: -12 }],
-  },
-  thresholdLabel: { fontSize: 10, color: COLORS.warning, fontWeight: '700' },
-
-  // ── Subject Card ─────────────────────────────────────────────────────────────
-  subjectCard: {
-    backgroundColor: COLORS.card,
-    borderRadius:    20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginBottom:    22,
-    shadowColor:     COLORS.shadow,
-    shadowOffset:    { width: 0, height: 4 },
-    shadowOpacity:   0.08,
-    shadowRadius:    12,
-    elevation:       5,
-  },
-  subjectRow: {
-    flexDirection:   'row',
-    alignItems:      'flex-start',
-    paddingVertical: 14,
-    gap:             12,
-  },
+  subjectRow:    { paddingVertical: 12, paddingLeft: 4, overflow: 'hidden' },
   subjectRowLow: {},
-  subjectDot: {
-    width:       10,
-    height:      10,
-    borderRadius: 5,
-    marginTop:   5,
-  },
-  subjectInfo: { flex: 1 },
-  subjectTopRow: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    alignItems:     'center',
-    marginBottom:   8,
-  },
-  subjectName: {
-    fontSize:   14,
-    fontWeight: '600',
-    color:      COLORS.text,
-    flex:       1,
-    marginRight: 8,
-  },
-  subjectPctBadge: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    paddingHorizontal: 8,
-    paddingVertical:   4,
-    borderRadius:      8,
-  },
-  subjectWarnIcon: { fontSize: 11 },
-  subjectPctText:  { fontSize: 12, fontWeight: '800' },
+  subjectBorder: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: 2 },
+  subjectDot:    { width: 9, height: 9, borderRadius: 5, position: 'absolute', left: 4, top: 19 },
+  subjectInfo:   { marginLeft: 20 },
+  subjectTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  subjectName:   { fontSize: 14, fontWeight: '700', color: C.text, flex: 1, marginRight: 8 },
+  pctBadge:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  pctBadgeTxt:   { fontSize: 12, fontWeight: '800' },
+  warnMini:      { fontSize: 10 },
+  subjectBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  subjectSessions:  { fontSize: 11, color: C.textMuted },
+  subjectNeeded:    { fontSize: 10, color: C.danger, fontWeight: '600', fontStyle: 'italic' },
 
-  subjectProgressBg: {
-    height:          5,
-    backgroundColor: COLORS.border,
-    borderRadius:    3,
-    overflow:        'visible',
-    marginBottom:    4,
-    position:        'relative',
-  },
-  subjectProgressFill:    { height: 5, borderRadius: 3 },
-  subjectThresholdLine: {
-    position:        'absolute',
-    top:             -3,
-    width:           2,
-    height:          11,
-    backgroundColor: COLORS.warning,
-    borderRadius:    1,
-  },
-  subjectSessions: { fontSize: 11, color: COLORS.textLight, marginTop: 1 },
-  subjectDivider:  { height: 1, backgroundColor: COLORS.border, marginLeft: 22 },
+  todayRow:     { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  todayDot:     { width: 9, height: 9, borderRadius: 5 },
+  todaySubject: { flex: 1, fontSize: 14, fontWeight: '600', color: C.text },
+  todayBadge:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  todayBadgeTxt:{ fontSize: 12, fontWeight: '700' },
 
-  // ── Warning Card ─────────────────────────────────────────────────────────────
-  warningCard: {
-    backgroundColor: COLORS.dangerLight,
-    borderRadius:    20,
-    padding:         16,
-    marginBottom:    22,
-    borderWidth:     1.5,
-    borderColor:     COLORS.danger,
-  },
-  warningHeader: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           10,
-    marginBottom:  14,
-  },
-  warningHeaderIcon:     { fontSize: 24 },
-  warningHeaderTitle:    { fontSize: 15, fontWeight: '700', color: COLORS.danger },
-  warningHeaderSubtitle: { fontSize: 12, color: COLORS.danger, opacity: 0.8, marginTop: 1 },
+  rowDivider: { height: 1, backgroundColor: C.border, marginLeft: 20 },
 
-  warningItem: {
-    flexDirection:  'row',
-    alignItems:     'flex-start',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    gap:             12,
-  },
-  warningItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(239,68,68,0.2)',
-  },
-  warningItemLeft:   { flex: 1 },
-  warningSubjectName: { fontSize: 14, fontWeight: '700', color: COLORS.danger },
-  warningDetail:     { fontSize: 12, color: COLORS.danger, opacity: 0.75, marginTop: 2 },
-  warningNeeded: {
-    fontSize:   11,
-    color:      COLORS.danger,
-    opacity:    0.7,
-    marginTop:  4,
-    fontStyle:  'italic',
-  },
-  warningPctBadge: {
-    backgroundColor:   COLORS.danger,
-    borderRadius:      10,
-    paddingHorizontal: 10,
-    paddingVertical:   5,
-  },
-  warningPct: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
+  allGoodStrip: { backgroundColor: C.successSoft, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12, marginTop: 10 },
+  allGoodTxt:   { fontSize: 12, color: C.success, fontWeight: '600' },
 
-  // ── All Good Banner ───────────────────────────────────────────────────────────
-  allGoodBanner: {
-    backgroundColor: COLORS.successLight,
-    borderRadius:    16,
-    padding:         16,
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             12,
-    marginBottom:    16,
-    borderWidth:     1,
-    borderColor:     COLORS.success,
+  reportBtn: {
+    backgroundColor: C.primary, borderRadius: 18, padding: 16, marginBottom: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 10, elevation: 6,
   },
-  allGoodIcon:  { fontSize: 28 },
-  allGoodTitle: { fontSize: 14, fontWeight: '700', color: COLORS.success },
-  allGoodSub:   { fontSize: 12, color: COLORS.success, opacity: 0.8, marginTop: 2 },
+  reportBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  reportBtnIcon:  { fontSize: 26 },
+  reportBtnTitle: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  reportBtnSub:   { fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
+  reportBtnArrow: { fontSize: 22, color: C.accent, fontWeight: '900' },
 
-  // ── Center Loader ─────────────────────────────────────────────────────────────
-  centerLoader:    { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  centerLoaderTxt: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
+  loader:    { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 400 },
+  loaderTxt: { fontSize: 14, color: C.textSub },
 
-  // ── Empty ─────────────────────────────────────────────────────────────────────
   emptyCard: {
-    backgroundColor: COLORS.card,
-    borderRadius:    18,
-    padding:         36,
-    alignItems:      'center',
-    marginBottom:    22,
-    borderWidth:     1.5,
-    borderStyle:     'dashed',
-    borderColor:     COLORS.border,
+    backgroundColor: C.card, borderRadius: 20, padding: 36,
+    alignItems: 'center', marginBottom: 14,
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.border,
   },
-  emptyIcon:    { fontSize: 40, marginBottom: 12 },
-  emptyTitle:   { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  emptySubText: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyIcon:  { fontSize: 40, marginBottom: 12 },
+  emptyTitle: { fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 6 },
+  emptySub:   { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20 },
+
+  errorCard: {
+    backgroundColor: C.dangerSoft, borderRadius: 12, padding: 14, marginBottom: 14,
+    borderWidth: 1, borderColor: C.danger,
+  },
+  errorTxt: { color: C.danger, fontSize: 13, fontWeight: '600' },
 });
 
 export default StudentHomeScreen;

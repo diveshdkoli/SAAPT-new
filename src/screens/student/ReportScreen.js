@@ -1,201 +1,628 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  StatusBar,
+  View, Text, ScrollView, StyleSheet, StatusBar,
+  ActivityIndicator, RefreshControl, TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../../theme';
+import {
+  doc, getDoc, collection, query, where, getDocs,
+} from 'firebase/firestore';
+import { auth, db } from '../../services/firebase/config';
 
-const DEFAULTER_THRESHOLD = 75;
+// ─── Constants ────────────────────────────────────────────────────────────────
+const THRESHOLD = 75;
 
-const MY_ATTENDANCE = [
-  { id: 's1', subject: 'Mathematics', present: 16, total: 18 },
-  { id: 's2', subject: 'Physics', present: 10, total: 14 },
-  { id: 's3', subject: 'Chemistry', present: 12, total: 14 },
-  { id: 's4', subject: 'English', present: 8, total: 12 },
-  { id: 's5', subject: 'Biology', present: 11, total: 14 },
+const C = {
+  bg:           '#F5F3FF',   // soft purple background
+  card:         '#FFFFFF',
+
+  primary:      '#4C1D95',   // deep purple (header / navbar)
+
+  accent:       '#7C3AED',   // main purple buttons
+  accentLight:  '#F3E8FF',   // light purple background
+  accentDark:   '#5B21B6',   // darker purple
+
+  success:      '#16A34A',
+  successBg:    '#DCFCE7',
+
+  danger:       '#DC2626',
+  dangerBg:     '#FEE2E2',
+
+  warning:      '#D97706',
+  warningBg:    '#FEF3C7',
+
+  text:         '#1E1B4B',   // dark indigo text
+  textSub:      '#4B5563',
+  textMuted:    '#A78BFA',
+
+  border:       '#E9D5FF',
+
+  tab:          '#F5F3FF',
+  tabActive:    '#7C3AED',
+};
+
+const DOT_COLORS = [
+  '#0F9B8E', '#6366F1', '#F59E0B', '#EC4899', '#14B8A6', '#8B5CF6',
 ];
 
-const CLASS_DEFAULTERS = [
-  { name: 'Rohan Mehta', rollNo: '03', pct: 55, subjects: ['Mathematics', 'English'] },
-  { name: 'Arjun Singh', rollNo: '05', pct: 44, subjects: ['Mathematics', 'Physics'] },
-  { name: 'Sneha Verma', rollNo: '04', pct: 42, subjects: ['Physics', 'Biology'] },
-];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const pct = (p, t) => (t === 0 ? 0 : Math.round((p / t) * 100));
 
-const pct = (p, t) => Math.round((p / t) * 100);
+const requiredClasses = (present, total) =>
+  Math.max(0, Math.ceil((THRESHOLD * total - 100 * present) / (100 - THRESHOLD)));
 
+const getInitials = (name = '') =>
+  name.split(' ').slice(0, 2).map(n => n[0]?.toUpperCase()).join('') || '?';
+
+// ─── Progress Bar ─────────────────────────────────────────────────────────────
 const ProgressBar = ({ percentage, color }) => (
-  <View style={styles.progressBg}>
-    <View style={[styles.progressFill, { width: `${percentage}%`, backgroundColor: color }]} />
+  <View style={pb.bg}>
+    <View style={[pb.fill, { width: `${Math.min(percentage, 100)}%`, backgroundColor: color }]} />
+    <View style={[pb.threshold, { left: `${THRESHOLD}%` }]} />
   </View>
 );
 
-const TABS = ['My Attendance', 'Class Defaulters'];
+const pb = StyleSheet.create({
+  bg:        { height: 8, backgroundColor: C.border, borderRadius: 4, overflow: 'visible', position: 'relative', marginVertical: 8 },
+  fill:      { height: 8, borderRadius: 4 },
+  threshold: { position: 'absolute', top: -4, width: 2, height: 16, backgroundColor: C.warning, borderRadius: 1 },
+});
 
-const StudentReportScreen = () => {
-  const [tab, setTab] = useState(0);
-
-  const overallPct = Math.round(
-    MY_ATTENDANCE.reduce((a, s) => a + pct(s.present, s.total), 0) / MY_ATTENDANCE.length
-  );
+// ─── Overall Badge ────────────────────────────────────────────────────────────
+const OverallBadge = ({ percentage, totalSubjects, totalPresent, totalClasses }) => {
+  const isGood = percentage >= THRESHOLD;
+  const color  = isGood ? C.success : C.danger;
+  const bg     = isGood ? C.successBg : C.dangerBg;
 
   return (
-<SafeAreaView style={styles.safe} edges={['top']}>
-        <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#F4F7F5"
-        translucent={false}
-      />
-      <View style={styles.topBar}>
-        <Text style={styles.topBarTitle}>My Report</Text>
-        <View style={[styles.overallBadge, { backgroundColor: overallPct >= DEFAULTER_THRESHOLD ? '#E6F0EA' : '#FFF0F0' }]}>
-          <Text style={[styles.overallTxt, { color: overallPct >= DEFAULTER_THRESHOLD ? Colors.primary : '#D94F4F' }]}>
-            Overall {overallPct}%
-          </Text>
+    <View style={ob.wrap}>
+      {/* Decorative circles */}
+      <View style={ob.deco1} />
+      <View style={ob.deco2} />
+
+      <View style={ob.inner}>
+        {/* Left: big circle */}
+        <View style={[ob.circle, { borderColor: color, backgroundColor: bg }]}>
+          <Text style={[ob.circlePct, { color }]}>{percentage}%</Text>
+          <Text style={ob.circleLabel}>Overall</Text>
+        </View>
+
+        {/* Right: stats */}
+        <View style={ob.statsGroup}>
+          <Text style={ob.statsHeading}>Attendance Summary</Text>
+          {[
+            { label: 'Subjects Tracked', val: totalSubjects, color: C.accent   },
+            { label: 'Total Present',    val: totalPresent,  color: C.success  },
+            { label: 'Total Absent',     val: totalClasses - totalPresent, color: C.danger },
+          ].map(item => (
+            <View key={item.label} style={ob.statRow}>
+              <View style={[ob.statDot, { backgroundColor: item.color }]} />
+              <Text style={ob.statVal}>{item.val} </Text>
+              <Text style={ob.statLbl}>{item.label}</Text>
+            </View>
+          ))}
         </View>
       </View>
 
-      {/* Tab Switcher */}
-      <View style={styles.tabRow}>
-        {TABS.map((t, i) => (
-          <TouchableOpacity key={i} style={[styles.tabBtn, tab === i && styles.tabBtnActive]} onPress={() => setTab(i)}>
-            <Text style={[styles.tabTxt, tab === i && styles.tabTxtActive]}>{t}</Text>
-          </TouchableOpacity>
-        ))}
+      {/* Status strip */}
+      <View style={[ob.strip, { backgroundColor: isGood ? C.successBg : C.dangerBg, borderColor: color }]}>
+        <Text style={[ob.stripTxt, { color }]}>
+          {isGood
+            ? '✓  You meet the attendance requirement. Keep it up!'
+            : `⚠  Below ${THRESHOLD}% requirement. Attend more classes!`}
+        </Text>
+      </View>
+    </View>
+  );
+};
+
+const ob = StyleSheet.create({
+  wrap: {
+    backgroundColor: C.primary, borderRadius: 24, padding: 20,
+    marginBottom: 16, overflow: 'hidden',
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25, shadowRadius: 16, elevation: 8,
+  },
+  deco1: { position: 'absolute', width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(15,155,142,0.12)', top: -50, right: -30 },
+  deco2: { position: 'absolute', width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.04)', bottom: -20, left: 10 },
+  inner: { flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 14 },
+  circle: {
+    width: 96, height: 96, borderRadius: 48, borderWidth: 5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  circlePct:   { fontSize: 24, fontWeight: '900', letterSpacing: -1 },
+  circleLabel: { fontSize: 10, color: C.textSub, fontWeight: '700', marginTop: 1 },
+  statsGroup:  { flex: 1 },
+  statsHeading:{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: '700', letterSpacing: 1, marginBottom: 8, textTransform: 'uppercase' },
+  statRow:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 },
+  statDot:     { width: 7, height: 7, borderRadius: 4 },
+  statVal:     { fontSize: 14, fontWeight: '800', color: '#fff' },
+  statLbl:     { fontSize: 11, color: 'rgba(255,255,255,0.55)' },
+  strip:       { borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1 },
+  stripTxt:    { fontSize: 12, fontWeight: '600', lineHeight: 18 },
+});
+
+// ─── Tab Bar ──────────────────────────────────────────────────────────────────
+const TabBar = ({ tab, setTab }) => (
+  <View style={tb.wrap}>
+    {['My Attendance', 'Class Defaulters'].map((label, i) => (
+      <TouchableOpacity
+        key={label}
+        style={[tb.tab, tab === i && tb.tabActive]}
+        onPress={() => setTab(i)}
+        activeOpacity={0.8}
+      >
+        <Text style={[tb.tabTxt, tab === i && tb.tabTxtActive]}>
+          {i === 0 ? '📊 ' : '⚠️ '}{label}
+        </Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+);
+
+const tb = StyleSheet.create({
+  wrap:        { flexDirection: 'row', backgroundColor: C.tab, borderRadius: 14, padding: 4, marginBottom: 16 },
+  tab:         { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  tabActive:   { backgroundColor: C.tabActive, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 3 },
+  tabTxt:      { fontSize: 13, fontWeight: '600', color: C.textMuted },
+  tabTxtActive:{ color: '#fff' },
+});
+
+// ─── Subject Attendance Card ──────────────────────────────────────────────────
+const SubjectCard = ({ subject, present, total, index }) => {
+  const p      = pct(present, total);
+  const isLow  = p < THRESHOLD;
+  const color  = isLow ? C.danger : C.success;
+  const needed = isLow ? requiredClasses(present, total) : 0;
+  const dot    = DOT_COLORS[index % DOT_COLORS.length];
+
+  return (
+    <View style={[sc.card, isLow && sc.cardLow]}>
+      {isLow && <View style={[sc.leftBorder, { backgroundColor: C.danger }]} />}
+
+      <View style={sc.header}>
+        <View style={[sc.dot, { backgroundColor: dot }]} />
+        <Text style={sc.subjectName} numberOfLines={1}>{subject}</Text>
+        <View style={[sc.pctBadge, { backgroundColor: isLow ? C.dangerBg : C.successBg }]}>
+          <Text style={[sc.pctTxt, { color }]}>{p}%</Text>
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ProgressBar percentage={p} color={color} />
 
-        {/* ── TAB 1: My Attendance ── */}
-        {tab === 0 && (
-          <>
-            {MY_ATTENDANCE.map((sub) => {
-              const p = pct(sub.present, sub.total);
-              const isLow = p < DEFAULTER_THRESHOLD;
-              const color = isLow ? '#D94F4F' : Colors.primary;
-              const needed = isLow
-                ? Math.ceil((DEFAULTER_THRESHOLD * sub.total - 100 * sub.present) / (100 - DEFAULTER_THRESHOLD))
-                : null;
-
-              return (
-                <View key={sub.id} style={[styles.card, isLow && styles.cardAlert]}>
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.subjectName}>{sub.subject}</Text>
-                    <Text style={[styles.pctTxt, { color }]}>{p}%</Text>
-                  </View>
-                  <ProgressBar percentage={p} color={color} />
-                  <View style={styles.cardFooter}>
-                    <Text style={styles.sessionTxt}>{sub.present}/{sub.total} sessions attended</Text>
-                    {isLow && (
-                      <Text style={styles.warningTxt}>⚠️ Need {needed} more to reach 75%</Text>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-          </>
+      <View style={sc.footer}>
+        <Text style={sc.sessions}>{present} / {total} sessions attended</Text>
+        {isLow && needed > 0 && (
+          <View style={sc.warningRow}>
+            <Text style={sc.warningTxt}>
+              ⚠️  Attend {needed} more consecutive class{needed > 1 ? 'es' : ''} to reach {THRESHOLD}%
+            </Text>
+          </View>
         )}
+        {!isLow && (
+          <Text style={sc.goodTxt}>✓ Good standing</Text>
+        )}
+      </View>
+    </View>
+  );
+};
 
-        {/* ── TAB 2: Class Defaulters ── */}
-        {tab === 1 && (
-          <>
-            <View style={styles.infoBox}>
-              <Text style={styles.infoTxt}>
-                Students in your class (CM1 – A) with attendance below {DEFAULTER_THRESHOLD}%
-              </Text>
-            </View>
-            {CLASS_DEFAULTERS.map((d, i) => (
-              <View key={i} style={styles.defaulterCard}>
-                <View style={styles.defaulterLeft}>
-                  <View style={styles.rollBadge}>
-                    <Text style={styles.rollNo}>{d.rollNo}</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.defaulterName}>{d.name}</Text>
-                    <Text style={styles.defaulterSubs}>{d.subjects.join(', ')}</Text>
-                  </View>
+const sc = StyleSheet.create({
+  card: {
+    backgroundColor: C.card, borderRadius: 16, padding: 16,
+    marginBottom: 10, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    borderWidth: 1, borderColor: C.border,
+  },
+  cardLow:     { borderColor: C.danger + '40' },
+  leftBorder:  { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, borderTopLeftRadius: 16, borderBottomLeftRadius: 16 },
+  header:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dot:         { width: 10, height: 10, borderRadius: 5 },
+  subjectName: { flex: 1, fontSize: 15, fontWeight: '700', color: C.text },
+  pctBadge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  pctTxt:      { fontSize: 13, fontWeight: '800' },
+  footer:      { gap: 4 },
+  sessions:    { fontSize: 12, color: C.textMuted },
+  warningRow:  { backgroundColor: C.dangerBg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginTop: 4 },
+  warningTxt:  { fontSize: 12, color: C.danger, fontWeight: '600', lineHeight: 17 },
+  goodTxt:     { fontSize: 12, color: C.success, fontWeight: '600' },
+});
+
+// ─── Defaulter Card ───────────────────────────────────────────────────────────
+const DefaulterCard = ({ name, rollNo, overallPct: oPct, lowSubjects, index }) => (
+  <View style={dc.card}>
+    <View style={dc.left}>
+      <View style={[dc.avatar, { backgroundColor: DOT_COLORS[index % DOT_COLORS.length] + '22' }]}>
+        <Text style={[dc.avatarTxt, { color: DOT_COLORS[index % DOT_COLORS.length] }]}>
+          {getInitials(name)}
+        </Text>
+      </View>
+    </View>
+    <View style={dc.info}>
+      {rollNo ? <Text style={dc.roll}>Roll #{rollNo}</Text> : null}
+      <Text style={dc.name}>{name}</Text>
+      <View style={dc.subjectWrap}>
+        {lowSubjects.map(sub => (
+          <View key={sub} style={dc.subChip}>
+            <Text style={dc.subChipTxt}>{sub}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+    <View style={[dc.pctBox, { backgroundColor: C.dangerBg }]}>
+      <Text style={dc.pctVal}>{oPct}%</Text>
+      <Text style={dc.pctLbl}>overall</Text>
+    </View>
+  </View>
+);
+
+const dc = StyleSheet.create({
+  card: {
+    backgroundColor: C.card, borderRadius: 16, padding: 14,
+    marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    borderWidth: 1, borderColor: C.dangerBg,
+  },
+  left:       {},
+  avatar:     { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  avatarTxt:  { fontSize: 15, fontWeight: '800' },
+  info:       { flex: 1 },
+  roll:       { fontSize: 10, color: C.textMuted, fontWeight: '700', letterSpacing: 0.5, marginBottom: 2 },
+  name:       { fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 4 },
+  subjectWrap:{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  subChip:    { backgroundColor: C.dangerBg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  subChipTxt: { fontSize: 10, color: C.danger, fontWeight: '600' },
+  pctBox:     { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  pctVal:     { fontSize: 18, fontWeight: '900', color: C.danger },
+  pctLbl:     { fontSize: 9, color: C.danger, fontWeight: '600', opacity: 0.7 },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+const ReportScreen = ({ navigation }) => {
+  const [tab,          setTab]          = useState(0);
+  const [loading,      setLoading]      = useState(true);
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [className,    setClassName]    = useState('');
+  const [myAttendance, setMyAttendance] = useState([]);  // [{ subjectId, subjectName, present, total }]
+  const [defaulters,   setDefaulters]   = useState([]);  // [{ name, rollNo, overallPct, lowSubjects }]
+  const [overall,      setOverall]      = useState({ pct: 0, present: 0, total: 0, subjects: 0 });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Fetch data
+  //
+  // attendance/{autoId} structure (confirmed from Firestore screenshots):
+  //   classId, className, date, subjectId, subjectName, teacherId, savedAt
+  //   records: [{ name, status, studentId }]   ← array ON the doc itself
+  //
+  // For defaulters we also need users/{uid} to get names and roll numbers
+  // of all students in the class — sourced from classes/{classId}.students[]
+  // ─────────────────────────────────────────────────────────────────────────
+  const loadData = useCallback(async () => {
+    try {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+
+      // ── Step 1: Get current student profile ──────────────────────────────
+      const userSnap = await getDoc(doc(db, 'users', uid));
+      if (!userSnap.exists()) return;
+      const userData = userSnap.data();
+      const classId  = userData.classId ?? null;
+      const cName    = userData.className ?? '';
+      setClassName(cName);
+      if (!classId) return;
+
+      // ── Step 2: Query all attendance docs for this class ──────────────────
+      // Single query: attendance WHERE classId == studentClassId
+      const attQuery = query(
+        collection(db, 'attendance'),
+        where('classId', '==', classId)
+      );
+      const attSnap = await getDocs(attQuery);
+
+      // ── Step 3: Build subject maps in one pass ────────────────────────────
+      // mySubjectMap[subjectId]             = { subjectId, subjectName, present, total }
+      // allStudentMap[studentId][subjectId] = { subjectName, present, total }
+      const mySubjectMap  = {};
+      const allStudentMap = {};
+
+      attSnap.docs.forEach(sessionDoc => {
+        const d = sessionDoc.data();
+
+        // subjectId & subjectName are stored on the SESSION doc (top level)
+        const sessionSubjectId   = d.subjectId   ?? 'unknown';
+        const sessionSubjectName = d.subjectName ?? 'Unknown';
+        const records            = d.records     ?? [];
+
+        records.forEach(r => {
+          const studentId = r.studentId ?? '';
+          if (!studentId) return;
+
+          const status = (r.status ?? '').toLowerCase();
+
+          // Read subjectId from the record if present (written by latest AttendanceScreen).
+          // Fall back to session-level subjectId for older docs that don't have it per-record.
+          const sid   = r.subjectId ?? sessionSubjectId;
+          const sName = sessionSubjectName;
+
+          // ── Track every student → used for defaulters tab ──
+          if (!allStudentMap[studentId])       allStudentMap[studentId] = {};
+          if (!allStudentMap[studentId][sid]) {
+            allStudentMap[studentId][sid] = { subjectName: sName, present: 0, total: 0 };
+          }
+          allStudentMap[studentId][sid].total += 1;
+          if (status === 'present') allStudentMap[studentId][sid].present += 1;
+
+          // ── Track only MY records → used for My Attendance tab ──
+          if (studentId === uid) {
+            if (!mySubjectMap[sid]) {
+              mySubjectMap[sid] = { subjectId: sid, subjectName: sName, present: 0, total: 0 };
+            }
+            mySubjectMap[sid].total += 1;
+            if (status === 'present') mySubjectMap[sid].present += 1;
+          }
+        });
+      });
+
+      // ── Step 4: My attendance stats ───────────────────────────────────────
+      const myStats = Object.values(mySubjectMap)
+        .sort((a, b) => a.subjectName.localeCompare(b.subjectName));
+
+      const totalPresent  = myStats.reduce((s, x) => s + x.present, 0);
+      const totalClasses  = myStats.reduce((s, x) => s + x.total,   0);
+      const overallPctVal = myStats.length > 0
+        ? Math.round(myStats.reduce((s, x) => s + pct(x.present, x.total), 0) / myStats.length)
+        : 0;
+
+      setMyAttendance(myStats);
+      setOverall({
+        pct:      overallPctVal,
+        present:  totalPresent,
+        total:    totalClasses,
+        subjects: myStats.length,
+      });
+
+      // ── Step 5: Build defaulters list ─────────────────────────────────────
+      // Get student names from users collection for each studentId
+      const otherStudentIds = Object.keys(allStudentMap).filter(id => id !== uid);
+
+      const defaulterList = [];
+
+      await Promise.all(
+        otherStudentIds.map(async (sId) => {
+          const subjects = allStudentMap[sId];
+          const subList  = Object.values(subjects);
+
+          // Calculate their overall pct (average across subjects)
+          const theirOverall = subList.length > 0
+            ? Math.round(subList.reduce((s, x) => s + pct(x.present, x.total), 0) / subList.length)
+            : 0;
+
+          if (theirOverall >= THRESHOLD) return; // not a defaulter
+
+          // Low attendance subjects
+          const lowSubs = subList
+            .filter(x => pct(x.present, x.total) < THRESHOLD)
+            .map(x => x.subjectName);
+
+          if (lowSubs.length === 0) return;
+
+          // Fetch their name from users collection
+          let name   = 'Unknown Student';
+          let rollNo = '';
+          try {
+            const uSnap = await getDoc(doc(db, 'users', sId));
+            if (uSnap.exists()) {
+              name   = uSnap.data().name       ?? 'Unknown Student';
+              rollNo = uSnap.data().rollNumber ?? uSnap.data().roll ?? '';
+            }
+          } catch (_) {}
+
+          defaulterList.push({ name, rollNo, overallPct: theirOverall, lowSubjects: lowSubs });
+        })
+      );
+
+      // Sort by pct ascending (worst first)
+      defaulterList.sort((a, b) => a.overallPct - b.overallPct);
+      setDefaulters(defaulterList);
+
+    } catch (err) {
+      console.error('ReportScreen error:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const onRefresh = () => { setRefreshing(true); loadData(); };
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+  return (
+    <SafeAreaView style={s.safe} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
+
+      {/* Header */}
+      <View style={s.header}>
+        <TouchableOpacity style={s.backBtn} onPress={() => navigation?.goBack?.()}>
+          <Text style={s.backIcon}>←</Text>
+        </TouchableOpacity>
+        <View>
+          <Text style={s.headerTitle}>Attendance Report</Text>
+          {className ? <Text style={s.headerSub}>Class: {className}</Text> : null}
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={s.loader}>
+          <ActivityIndicator size="large" color={C.accent} />
+          <Text style={s.loaderTxt}>Analysing your attendance…</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={s.scroll}
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
+              colors={[C.accent]} tintColor={C.accent} />
+          }
+        >
+          {/* Overall Badge */}
+          <OverallBadge
+            percentage={overall.pct}
+            totalSubjects={overall.subjects}
+            totalPresent={overall.present}
+            totalClasses={overall.total}
+          />
+
+          {/* Tabs */}
+          <TabBar tab={tab} setTab={setTab} />
+
+          {/* ── Tab 1: My Attendance ── */}
+          {tab === 0 && (
+            <>
+              {myAttendance.length === 0 ? (
+                <View style={s.emptyCard}>
+                  <Text style={s.emptyIcon}>📋</Text>
+                  <Text style={s.emptyTitle}>No Attendance Data Yet</Text>
+                  <Text style={s.emptySub}>Your teacher hasn't recorded any sessions yet.</Text>
                 </View>
-                <View style={styles.defaulterBadge}>
-                  <Text style={styles.defaulterPct}>{d.pct}%</Text>
-                </View>
+              ) : (
+                <>
+                  {/* Low attendance warning banner */}
+                  {myAttendance.filter(x => pct(x.present, x.total) < THRESHOLD).length > 0 && (
+                    <View style={s.alertBanner}>
+                      <Text style={s.alertBannerTxt}>
+                        ⚠️  {myAttendance.filter(x => pct(x.present, x.total) < THRESHOLD).length} subject
+                        {myAttendance.filter(x => pct(x.present, x.total) < THRESHOLD).length > 1 ? 's are' : ' is'} below {THRESHOLD}% — action required!
+                      </Text>
+                    </View>
+                  )}
+
+                  {myAttendance.map((sub, i) => (
+                    <SubjectCard
+                      key={sub.subjectId}
+                      subject={sub.subjectName}
+                      present={sub.present}
+                      total={sub.total}
+                      index={i}
+                    />
+                  ))}
+
+                  {/* All good banner */}
+                  {myAttendance.every(x => pct(x.present, x.total) >= THRESHOLD) && (
+                    <View style={s.goodBanner}>
+                      <Text style={s.goodBannerTxt}>
+                        🎉  Excellent! You're above {THRESHOLD}% in all subjects.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {/* ── Tab 2: Class Defaulters ── */}
+          {tab === 1 && (
+            <>
+              <View style={s.infoBanner}>
+                <Text style={s.infoBannerTitle}>🏫 {className || 'Your Class'}</Text>
+                <Text style={s.infoBannerSub}>
+                  Students with overall attendance below {THRESHOLD}%
+                </Text>
               </View>
-            ))}
-          </>
-        )}
 
-      </ScrollView>
+              {defaulters.length === 0 ? (
+                <View style={s.emptyCard}>
+                  <Text style={s.emptyIcon}>🎉</Text>
+                  <Text style={s.emptyTitle}>No Defaulters!</Text>
+                  <Text style={s.emptySub}>All students are above {THRESHOLD}% attendance.</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={s.defaulterCount}>
+                    <Text style={s.defaulterCountTxt}>
+                      {defaulters.length} student{defaulters.length > 1 ? 's' : ''} below {THRESHOLD}%
+                    </Text>
+                  </View>
+                  {defaulters.map((d, i) => (
+                    <DefaulterCard
+                      key={d.name + i}
+                      name={d.name}
+                      rollNo={d.rollNo}
+                      overallPct={d.overallPct}
+                      lowSubjects={d.lowSubjects}
+                      index={i}
+                    />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
 
-export default StudentReportScreen;
-
-const styles = StyleSheet.create({
-safe: { flex: 1, backgroundColor: '#F4F7F5' },
-  topBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  safe:   { flex: 1, backgroundColor: C.bg },
+  header: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 16, paddingVertical: 14,
-    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 1, borderBottomColor: C.border,
+    backgroundColor: C.bg,
   },
-  topBarTitle: { fontSize: 20, fontWeight: '700', color: '#1C1C1C' },
-  overallBadge: { borderRadius: 50, paddingHorizontal: 12, paddingVertical: 5 },
-  overallTxt: { fontSize: 13, fontWeight: '700' },
+  backBtn:     { width: 36, height: 36, borderRadius: 10, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  backIcon:    { fontSize: 18, color: C.text, fontWeight: '700' },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: C.text },
+  headerSub:   { fontSize: 12, color: C.textMuted, marginTop: 1 },
 
-  tabRow: {
-    flexDirection: 'row', backgroundColor: '#fff',
-    paddingHorizontal: 16, paddingBottom: 12, gap: 8,
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
-  },
-  tabBtn: {
-    paddingHorizontal: 18, paddingVertical: 8, borderRadius: 50,
-    borderWidth: 1.5, borderColor: '#E0E0E0',
-  },
-  tabBtnActive: { backgroundColor: '#7C5CBF', borderColor: '#7C5CBF' },
-  tabTxt: { fontSize: 13, fontWeight: '600', color: '#6B6B6B' },
-  tabTxtActive: { color: '#fff' },
+  scroll:        { flex: 1 },
+  scrollContent: { padding: 16 },
 
-  scroll: { padding: 16, paddingBottom: 32, gap: 12 },
+  loader:    { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loaderTxt: { fontSize: 14, color: C.textSub },
 
-  card: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+  alertBanner: {
+    backgroundColor: C.dangerBg, borderRadius: 12, padding: 12,
+    marginBottom: 12, borderWidth: 1, borderColor: C.danger + '40',
   },
-  cardAlert: { borderLeftWidth: 3, borderLeftColor: '#D94F4F' },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  subjectName: { fontSize: 15, fontWeight: '700', color: '#1C1C1C' },
-  pctTxt: { fontSize: 16, fontWeight: '800' },
-  progressBg: { height: 7, backgroundColor: '#F0F0F0', borderRadius: 50, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 50 },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  sessionTxt: { fontSize: 12, color: '#6B6B6B' },
-  warningTxt: { fontSize: 12, color: '#D94F4F', fontWeight: '600' },
+  alertBannerTxt: { fontSize: 13, color: C.danger, fontWeight: '600', lineHeight: 18 },
 
-  infoBox: {
-    backgroundColor: '#FFF8E6', borderRadius: 10, padding: 12,
-    borderLeftWidth: 3, borderLeftColor: '#D97706',
+  goodBanner: {
+    backgroundColor: C.successBg, borderRadius: 12, padding: 12,
+    marginTop: 4, borderWidth: 1, borderColor: C.success + '40',
   },
-  infoTxt: { fontSize: 13, color: '#92600A', lineHeight: 20 },
+  goodBannerTxt: { fontSize: 13, color: C.success, fontWeight: '600' },
 
-  defaulterCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
-    borderLeftWidth: 3, borderLeftColor: '#D94F4F',
+  infoBanner: {
+    backgroundColor: C.primary, borderRadius: 16, padding: 16,
+    marginBottom: 14,
   },
-  defaulterLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  rollBadge: {
-    width: 36, height: 36, borderRadius: 8,
-    backgroundColor: '#FFF0F0', alignItems: 'center', justifyContent: 'center',
+  infoBannerTitle: { fontSize: 16, fontWeight: '800', color: '#fff', marginBottom: 4 },
+  infoBannerSub:   { fontSize: 13, color: 'rgba(255,255,255,0.65)' },
+
+  defaulterCount: {
+    backgroundColor: C.dangerBg, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14,
+    marginBottom: 10, alignSelf: 'flex-start',
   },
-  rollNo: { fontSize: 12, fontWeight: '700', color: '#D94F4F' },
-  defaulterName: { fontSize: 15, fontWeight: '600', color: '#1C1C1C' },
-  defaulterSubs: { fontSize: 12, color: '#6B6B6B', marginTop: 2 },
-  defaulterBadge: {
-    backgroundColor: '#FFF0F0', borderRadius: 50,
-    paddingHorizontal: 12, paddingVertical: 5,
-    borderWidth: 1, borderColor: '#FFCCCC',
+  defaulterCountTxt: { fontSize: 12, color: C.danger, fontWeight: '700' },
+
+  emptyCard: {
+    backgroundColor: C.card, borderRadius: 20, padding: 40,
+    alignItems: 'center', borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.border,
   },
-  defaulterPct: { fontSize: 14, fontWeight: '800', color: '#D94F4F' },
+  emptyIcon:  { fontSize: 40, marginBottom: 12 },
+  emptyTitle: { fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 6 },
+  emptySub:   { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20 },
 });
+
+export default ReportScreen;
