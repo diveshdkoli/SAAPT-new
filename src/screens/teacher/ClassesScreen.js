@@ -1,299 +1,823 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
   StatusBar,
+  ActivityIndicator,
+  RefreshControl,
+  Modal,
+  Animated,
+  Dimensions,
+  TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../theme';
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from 'firebase/firestore';
+import { auth, db } from '../../services/firebase/config';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const CLASS_COLORS = ['#2F6F4E', '#7C5CBF', '#1976B8', '#D97706', '#D94F4F'];
+// ─── Color Palette ────────────────────────────────────────────────────────────
+const COLORS = {
+  primary:        '#4F46E5',
+  primaryLight:   '#EEF2FF',
+  secondary:      '#06B6D4',
+  secondaryLight: '#ECFEFF',
+  success:        '#10B981',
+  successLight:   '#D1FAE5',
+  warning:        '#F59E0B',
+  warningLight:   '#FEF3C7',
+  background:     '#F8F9FE',
+  card:           '#FFFFFF',
+  text:           '#1E1B4B',
+  textSecondary:  '#6B7280',
+  textLight:      '#9CA3AF',
+  border:         '#E5E7EB',
+  shadow:         '#1E1B4B',
+};
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MOCK DATA — will be replaced with Firestore data later
-// ─────────────────────────────────────────────────────────────────────────────
-
-const INITIAL_CLASSES = [
-  {
-    id: '1',
-    name: 'CM1',
-    section: 'A',
-    students: [
-      { id: 'st1', rollNo: '01', name: 'Aarav Sharma', enrollNo: 'EN2024001' },
-      { id: 'st2', rollNo: '02', name: 'Priya Patel', enrollNo: 'EN2024002' },
-      { id: 'st3', rollNo: '03', name: 'Rohan Mehta', enrollNo: 'EN2024003' },
-      { id: 'st4', rollNo: '04', name: 'Neha Gupta', enrollNo: 'EN2024004' },
-      { id: 'st5', rollNo: '04', name: 'Neha Gupta', enrollNo: 'EN2024004' },
-      { id: 'st6', rollNo: '04', name: 'Neha Gupta', enrollNo: 'EN2024004' },
-      { id: 'st7', rollNo: '04', name: 'Neha Gupta', enrollNo: 'EN2024004' },
-      { id: 'st8', rollNo: '04', name: 'Neha Gupta', enrollNo: 'EN2024004' },
-      { id: 'st9', rollNo: '04', name: 'Neha Gupta', enrollNo: 'EN2024004' },
-      { id: 'st10', rollNo: '04', name: 'Neha Gupta', enrollNo: 'EN2024004' },
-
-    ],
-    subjects: [
-      { id: 's1', name: 'Operating System', days: ['Mon', 'Wed'], time: '09:00 AM' },
-    ],
-  },
-  {
-    id: '2',
-    name: 'CM2',
-    section: 'B',
-    students: [
-      { id: 'st11', rollNo: '01', name: 'Aarav Sharma', enrollNo: 'EN2024001' },
-      { id: 'st12', rollNo: '02', name: 'Priya Patel', enrollNo: 'EN2024002' },
-      { id: 'st13', rollNo: '03', name: 'Rohan Mehta', enrollNo: 'EN2024003' },
-      { id: 'st14', rollNo: '04', name: 'Neha Gupta', enrollNo: 'EN2024004' },
-      { id: 'st15', rollNo: '04', name: 'Neha Gupta', enrollNo: 'EN2024004' }
-
-    ],
-    subjects: [
-      { id: 's3', name: 'English', days: ['Mon', 'Fri'], time: '10:00 AM' },
-    ],
-  },
+const ACCENT_CYCLE = [
+  { bar: COLORS.primary,   badge: COLORS.primaryLight,   text: COLORS.primary   },
+  { bar: COLORS.secondary, badge: COLORS.secondaryLight, text: COLORS.secondary },
+  { bar: COLORS.success,   badge: COLORS.successLight,   text: COLORS.success   },
+  { bar: COLORS.warning,   badge: COLORS.warningLight,   text: COLORS.warning   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SMALL REUSABLE COMPONENTS
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const formatNumber = (num) => {
+  if (num === null || num === undefined) return '0';
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+  return num.toString();
+};
 
-// Single student row — read-only
-const StudentRow = ({ student }) => (
-  <View style={styles.studentRow}>
-    <View style={styles.rollBadge}>
-      <Text style={styles.rollNo}>{student.rollNo}</Text>
-    </View>
-    <View style={styles.studentInfo}>
-      <Text style={styles.studentName}>{student.name}</Text>
-      <Text style={styles.enrollNo}>Enroll: {student.enrollNo}</Text>
-    </View>
-  </View>
-);
+const getInitials = (name = '') =>
+  name.split(' ').slice(0, 2).map((n) => n[0]?.toUpperCase()).join('') || '?';
 
-// Subject chip — read-only
-const SubjectChip = ({ subject }) => (
-  <View style={styles.subjectChip}>
-    <Text style={styles.subjectChipName}>{subject.name}</Text>
-    <Text style={styles.subjectChipMeta}>{subject.days.join(', ')} · {subject.time}</Text>
-  </View>
-);
+const AVATAR_COLORS = [
+  { bg: '#EEF2FF', text: '#4F46E5' },
+  { bg: '#ECFEFF', text: '#06B6D4' },
+  { bg: '#D1FAE5', text: '#10B981' },
+  { bg: '#FEF3C7', text: '#F59E0B' },
+  { bg: '#FCE7F3', text: '#EC4899' },
+  { bg: '#FEE2E2', text: '#EF4444' },
+];
 
-// Class card shown in the main list
-const ClassCard = ({ cls, color, onPress }) => (
-  <TouchableOpacity style={styles.classCard} onPress={onPress} activeOpacity={0.85}>
-    <View style={[styles.classCardHeader, { backgroundColor: color }]}>
-      <View style={styles.classCardLeft}>
-        <Text style={styles.classCardName}>{cls.name} – {cls.section}</Text>
-        <Text style={styles.classCardMeta}>
-          👥 {cls.students.length} students · 📖 {cls.subjects.length} subjects
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.7)" />
-    </View>
-    {cls.subjects.length > 0 && (
-      <View style={styles.chipRow}>
-        {cls.subjects.map((s) => (
-          <View key={s.id} style={styles.previewChip}>
-            <Text style={styles.previewChipTxt}>{s.name}</Text>
-          </View>
-        ))}
-      </View>
-    )}
-  </TouchableOpacity>
-);
+// ─── Bottom Sheet Component ───────────────────────────────────────────────────
+const StudentBottomSheet = ({ visible, onClose, classItem, teacherName }) => {
+  const slideAnim  = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+  const [students, setStudents]   = useState([]);
+  const [loading,  setLoading]    = useState(false);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN SCREEN
-// ─────────────────────────────────────────────────────────────────────────────
+  // ── Animate in/out ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (visible) {
+      fetchStudents();
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue:        0,
+          useNativeDriver: true,
+          bounciness:      4,
+          speed:           14,
+        }),
+        Animated.timing(backdropAnim, {
+          toValue:         1,
+          duration:        300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue:         SCREEN_HEIGHT,
+          duration:        280,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropAnim, {
+          toValue:         0,
+          duration:        280,
+          useNativeDriver: true,
+        }),
+      ]).start(() => setStudents([]));
+    }
+  }, [visible]);
 
-const TeacherClassesScreen = () => {
-  const [classes] = useState(INITIAL_CLASSES);
-  const [view, setView] = useState('list'); // 'list' | 'detail'
-  const [selectedClass, setSelectedClass] = useState(null);
+  // ── Fetch students from classes/{classId} → users collection ───────────────
+  const fetchStudents = async () => {
+    if (!classItem?.classId) return;
+    setLoading(true);
+    try {
+      const classSnap = await getDoc(doc(db, 'classes', classItem.classId));
+      if (!classSnap.exists()) { setStudents([]); return; }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER — LIST VIEW (all classes)
-  // ─────────────────────────────────────────────────────────────────────────
+      const studentIds = classSnap.data().students ?? [];
+      if (studentIds.length === 0) { setStudents([]); return; }
 
-  if (view === 'list') {
-    return (
-<SafeAreaView style={styles.safe} edges={['top']}>
-          <StatusBar
-          barStyle="dark-content"
-          backgroundColor="#F4F7F5"
-          translucent={false}
+      // Fetch in chunks of 30 (Firestore 'in' limit)
+      const userDocs = [];
+      for (let i = 0; i < studentIds.length; i += 30) {
+        const chunk = studentIds.slice(i, i + 30);
+        const snap  = await getDocs(
+          query(collection(db, 'users'), where('__name__', 'in', chunk))
+        );
+        snap.docs.forEach((d) => userDocs.push({ id: d.id, ...d.data() }));
+      }
+
+      // Preserve original order
+      const ordered = studentIds
+        .map((id) => userDocs.find((u) => u.id === id))
+        .filter(Boolean);
+
+      setStudents(ordered);
+    } catch (err) {
+      console.error('fetchStudents error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!classItem) return null;
+
+  const accentIndex = 0;
+  const accent      = ACCENT_CYCLE[accentIndex];
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      {/* ── Backdrop ── */}
+      <TouchableWithoutFeedback onPress={onClose}>
+        <Animated.View
+          style={[
+            styles.backdrop,
+            { opacity: backdropAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.55] }) },
+          ]}
         />
-        <View style={styles.topBar}>
+      </TouchableWithoutFeedback>
+
+      {/* ── Sheet ── */}
+      <Animated.View
+        style={[
+          styles.sheet,
+          { transform: [{ translateY: slideAnim }] },
+        ]}
+      >
+        {/* Drag handle */}
+        <View style={styles.dragHandle} />
+
+        {/* ── Sheet Header ── */}
+        <View style={styles.sheetHeader}>
+          <View style={styles.sheetHeaderLeft}>
+            {/* Class icon */}
+            <View style={[styles.sheetClassIcon, { backgroundColor: COLORS.primaryLight }]}>
+              <Text style={styles.sheetClassIconText}>🏫</Text>
+            </View>
+            <View>
+              <Text style={styles.sheetClassName}>{classItem.className}</Text>
+              <Text style={styles.sheetSubjectName}>📖  {classItem.subjectName}</Text>
+            </View>
+          </View>
+
+          {/* Close button */}
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.8}>
+            <Text style={styles.closeBtnText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Teacher Info Row ── */}
+        <View style={styles.teacherRow}>
+          <View style={styles.teacherAvatar}>
+            <Text style={styles.teacherAvatarText}>{getInitials(teacherName)}</Text>
+          </View>
           <View>
-            <Text style={styles.topBarTitle}>My Classes</Text>
-            <Text style={styles.topBarSub}>
-              {classes.length} classes · {classes.reduce((a, c) => a + c.subjects.length, 0)} subjects
+            <Text style={styles.teacherLabel}>Class Teacher</Text>
+            <Text style={styles.teacherName}>{teacherName || '—'}</Text>
+          </View>
+        </View>
+
+        {/* ── Student Count pill ── */}
+        <View style={styles.studentCountRow}>
+          <Text style={styles.studentCountTitle}>Students</Text>
+          <View style={styles.studentCountPill}>
+            <Text style={styles.studentCountPillText}>
+              {loading ? '…' : students.length}
             </Text>
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {classes.map((cls, i) => (
-            <ClassCard
-              key={cls.id}
-              cls={cls}
-              color={CLASS_COLORS[i % CLASS_COLORS.length]}
-              onPress={() => { setSelectedClass(cls); setView('detail'); }}
-            />
-          ))}
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
+        {/* ── Student List ── */}
+        {loading ? (
+          <View style={styles.sheetLoader}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.sheetLoaderText}>Loading students…</Text>
+          </View>
+        ) : students.length === 0 ? (
+          <View style={styles.sheetEmpty}>
+            <Text style={styles.sheetEmptyIcon}>👥</Text>
+            <Text style={styles.sheetEmptyText}>No students enrolled yet</Text>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.studentScroll}
+            contentContainerStyle={styles.studentScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {students.map((student, index) => {
+              const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
+              return (
+                <View key={student.id} style={styles.studentRow}>
+                  {/* Index */}
+                  <Text style={styles.studentIndex}>{index + 1}</Text>
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER — DETAIL VIEW (single class)
-  // ─────────────────────────────────────────────────────────────────────────
+                  {/* Avatar */}
+                  <View style={[styles.studentAvatar, { backgroundColor: avatarColor.bg }]}>
+                    <Text style={[styles.studentAvatarText, { color: avatarColor.text }]}>
+                      {getInitials(student.name)}
+                    </Text>
+                  </View>
 
-  return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+                  {/* Name + email */}
+                  <View style={styles.studentInfo}>
+                    <Text style={styles.studentName}>{student.name ?? 'Unknown'}</Text>
+                    {student.email ? (
+                      <Text style={styles.studentEmail}>{student.email}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })}
 
-      {/* Top bar with back button */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => setView('list')} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={20} color={Colors.primary} />
-          <Text style={styles.backTxt}>Classes</Text>
-        </TouchableOpacity>
-        <Text style={styles.topBarTitle}>{selectedClass?.name} – {selectedClass?.section}</Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-
-        {/* ── SUBJECTS SECTION (read-only) ── */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Subjects ({selectedClass?.subjects.length})
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-          {selectedClass?.subjects.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>📖</Text>
-              <Text style={styles.emptyTxt}>
-                No subjects assigned to this class yet.
-              </Text>
-            </View>
-          ) : (
-            selectedClass?.subjects.map((subject) => (
-              <SubjectChip key={subject.id} subject={subject} />
-            ))
-          )}
-        </View>
-
-        {/* ── STUDENTS SECTION (read-only) ── */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Students ({selectedClass?.students.length})
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-          {selectedClass?.students.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>👥</Text>
-              <Text style={styles.emptyTxt}>
-                No students enrolled in this class yet.
-              </Text>
-            </View>
-          ) : (
-            selectedClass?.students.map((student) => (
-              <StudentRow key={student.id} student={student} />
-            ))
-          )}
-        </View>
-
-      </ScrollView>
-    </SafeAreaView>
+            <View style={{ height: 32 }} />
+          </ScrollView>
+        )}
+      </Animated.View>
+    </Modal>
   );
 };
 
-export default TeacherClassesScreen;
+// ─── Class Card ───────────────────────────────────────────────────────────────
+const ClassCard = ({ item, index, onPress, onTakeAttendance }) => {
+  const accent       = ACCENT_CYCLE[index % ACCENT_CYCLE.length];
+  const studentCount = item.studentCount ?? 0;
 
+  return (
+    // Whole card is tappable → opens bottom sheet
+    <TouchableOpacity
+      style={styles.classCard}
+      onPress={() => onPress(item)}
+      activeOpacity={0.88}
+    >
+      <View style={[styles.classAccentBar, { backgroundColor: accent.bar }]} />
+
+      <View style={styles.classCardInner}>
+        <View style={styles.classCardTop}>
+          <View style={styles.classCardTitles}>
+            <Text style={styles.className}>{item.className}</Text>
+            <Text style={styles.classSubject}>📖  {item.subjectName}</Text>
+          </View>
+
+          <View style={[styles.studentBadge, { backgroundColor: accent.badge }]}>
+            <Text style={styles.studentBadgeIcon}>👨‍🎓</Text>
+            <Text style={[styles.studentBadgeText, { color: accent.text }]}>
+              {formatNumber(studentCount)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.metaRow}>
+          <View style={styles.metaChip}>
+            <Text style={styles.metaChipText}>
+              {studentCount} {studentCount === 1 ? 'Student' : 'Students'}
+            </Text>
+          </View>
+          <View style={[styles.metaChip, { backgroundColor: accent.badge, borderColor: accent.badge }]}>
+            <Text style={[styles.metaChipText, { color: accent.text }]}>
+              Tap to view students
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.classCardDivider} />
+
+        <TouchableOpacity
+          style={[styles.takeAttendanceBtn, { backgroundColor: accent.badge }]}
+          onPress={() => onTakeAttendance(item)}
+          activeOpacity={0.78}
+        >
+          <Text style={styles.takeAttendanceBtnIcon}>📝</Text>
+          <Text style={[styles.takeAttendanceBtnText, { color: accent.text }]}>
+            Take Attendance
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// ─── Summary Strip ────────────────────────────────────────────────────────────
+const SummaryStrip = ({ totalClasses, totalStudents, totalSubjects }) => (
+  <View style={styles.summaryStrip}>
+    <View style={styles.summaryItem}>
+      <Text style={[styles.summaryValue, { color: COLORS.primary }]}>{totalClasses}</Text>
+      <Text style={styles.summaryLabel}>Classes</Text>
+    </View>
+    <View style={styles.summaryDivider} />
+    <View style={styles.summaryItem}>
+      <Text style={[styles.summaryValue, { color: COLORS.secondary }]}>{formatNumber(totalStudents)}</Text>
+      <Text style={styles.summaryLabel}>Students</Text>
+    </View>
+    <View style={styles.summaryDivider} />
+    <View style={styles.summaryItem}>
+      <Text style={[styles.summaryValue, { color: COLORS.success }]}>{totalSubjects}</Text>
+      <Text style={styles.summaryLabel}>Subjects</Text>
+    </View>
+  </View>
+);
+
+const EmptyState = () => (
+  <View style={styles.emptyWrapper}>
+    <View style={styles.emptyCard}>
+      <Text style={styles.emptyIcon}>🏫</Text>
+      <Text style={styles.emptyTitle}>No Classes Assigned</Text>
+      <Text style={styles.emptySubText}>
+        Your admin hasn't assigned any classes to your account yet.{'\n'}
+        Please contact your admin to get started.
+      </Text>
+    </View>
+  </View>
+);
+
+const FullLoader = () => (
+  <View style={styles.loaderWrapper}>
+    <ActivityIndicator size="large" color={COLORS.primary} />
+    <Text style={styles.loaderText}>Loading your classes…</Text>
+  </View>
+);
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+const ClassesScreen = ({ navigation }) => {
+  const [classCards,    setClassCards]    = useState([]);
+  const [totalStudents, setTotalStudents] = useState(0);
+  const [totalSubjects, setTotalSubjects] = useState(0);
+  const [teacherName,   setTeacherName]   = useState('');
+  const [loading,       setLoading]       = useState(true);
+  const [refreshing,    setRefreshing]    = useState(false);
+
+  // Bottom sheet state
+  const [sheetVisible,  setSheetVisible]  = useState(false);
+  const [selectedClass, setSelectedClass] = useState(null);
+
+  // ── Fetch data ───────────────────────────────────────────────────────────
+  const fetchData = useCallback(async () => {
+    try {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+
+      // Teacher name
+      const userSnap = await getDoc(doc(db, 'users', uid));
+      if (userSnap.exists()) setTeacherName(userSnap.data().name ?? '');
+
+      // class_subjects rows
+      const csSnap = await getDocs(
+        query(collection(db, 'class_subjects'), where('teacherId', '==', uid))
+      );
+      const csRows = csSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      if (csRows.length === 0) {
+        setClassCards([]); setTotalStudents(0); setTotalSubjects(0);
+        return;
+      }
+
+      // Unique classIds → student counts
+      const uniqueClassIds = [...new Set(csRows.map((r) => r.classId).filter(Boolean))];
+      const classStudentMap = {};
+      await Promise.all(
+        uniqueClassIds.map(async (classId) => {
+          try {
+            const snap = await getDoc(doc(db, 'classes', classId));
+            classStudentMap[classId] = snap.exists() ? (snap.data().students?.length ?? 0) : 0;
+          } catch { classStudentMap[classId] = 0; }
+        })
+      );
+
+      const enriched = csRows
+        .map((row) => ({ ...row, studentCount: classStudentMap[row.classId] ?? 0 }))
+        .sort((a, b) => (a.className ?? '').localeCompare(b.className ?? ''));
+
+      const students = uniqueClassIds.reduce((sum, id) => sum + (classStudentMap[id] ?? 0), 0);
+      const subjects = new Set(csRows.map((r) => r.subjectId).filter(Boolean)).size;
+
+      setClassCards(enriched);
+      setTotalStudents(students);
+      setTotalSubjects(subjects);
+    } catch (err) {
+      console.error('ClassesScreen fetchData error:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const onRefresh = () => { setRefreshing(true); fetchData(); };
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
+  const handleCardPress = (item) => {
+    setSelectedClass(item);
+    setSheetVisible(true);
+  };
+
+  const handleCloseSheet = () => setSheetVisible(false);
+
+  const handleTakeAttendance = (item) => {
+    navigation?.navigate('AttendanceScreen', {
+      classId:     item.classId,
+      className:   item.className,
+      subjectId:   item.subjectId,
+      subjectName: item.subjectName,
+    });
+  };
+
+  // ── Render ──────────────────────────────────────────────────────────────
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation?.goBack()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.backBtnIcon}>←</Text>
+          </TouchableOpacity>
+          <View style={styles.headerTextGroup}>
+            <Text style={styles.headerTitle}>My Classes</Text>
+            <Text style={styles.headerSubtitle}>
+              {loading ? 'Loading…' : `${classCards.length} class${classCards.length !== 1 ? 'es' : ''} assigned`}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {loading ? (
+        <FullLoader />
+      ) : (
+        <FlatList
+          data={classCards}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />
+          }
+          ListHeaderComponent={
+            <SummaryStrip totalClasses={classCards.length} totalStudents={totalStudents} totalSubjects={totalSubjects} />
+          }
+          ListEmptyComponent={<EmptyState />}
+          renderItem={({ item, index }) => (
+            <ClassCard
+              item={item}
+              index={index}
+              onPress={handleCardPress}
+              onTakeAttendance={handleTakeAttendance}
+            />
+          )}
+          ListFooterComponent={<View style={{ height: 32 }} />}
+        />
+      )}
+
+      {/* ── Bottom Sheet ── */}
+      <StudentBottomSheet
+        visible={sheetVisible}
+        onClose={handleCloseSheet}
+        classItem={selectedClass}
+        teacherName={teacherName}
+      />
+    </View>
+  );
+};
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F4F7F5' },
-  // ── Top bar ──
-  topBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14,
-    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
   },
-  topBarTitle: { fontSize: 20, fontWeight: '700', color: '#1C1C1C' },
-  topBarSub: { fontSize: 12, color: '#6B6B6B', marginTop: 2 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  backTxt: { fontSize: 15, color: Colors.primary, fontWeight: '600' },
 
-  // ── Scroll ──
-  scroll: { padding: 16, paddingBottom: 40, gap: 14 },
+  // Header
+  header: {
+    backgroundColor:         COLORS.primary,
+    paddingTop:              52,
+    paddingHorizontal:       20,
+    paddingBottom:           24,
+    borderBottomLeftRadius:  28,
+    borderBottomRightRadius: 28,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           14,
+  },
+  backBtn: {
+    width:           38,
+    height:          38,
+    borderRadius:    19,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems:      'center',
+    justifyContent:  'center',
+    borderWidth:     1.5,
+    borderColor:     'rgba(255,255,255,0.35)',
+  },
+  backBtnIcon: {
+    color:      '#FFFFFF',
+    fontSize:   18,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  headerTextGroup: { flex: 1 },
+  headerTitle: {
+    fontSize:   22,
+    fontWeight: '700',
+    color:      '#FFFFFF',
+  },
+  headerSubtitle: {
+    fontSize:   13,
+    color:      'rgba(255,255,255,0.7)',
+    marginTop:  3,
+    fontWeight: '500',
+  },
 
-  // ── Class card (list view) ──
+  // List
+  listContent: {
+    paddingHorizontal: 18,
+    paddingTop:        22,
+  },
+
+  // Summary strip
+  summaryStrip: {
+    backgroundColor: COLORS.card,
+    borderRadius:    18,
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-around',
+    paddingVertical: 18,
+    marginBottom:    22,
+    shadowColor:     COLORS.shadow,
+    shadowOffset:    { width: 0, height: 3 },
+    shadowOpacity:   0.07,
+    shadowRadius:    10,
+    elevation:       4,
+  },
+  summaryItem:  { alignItems: 'center', flex: 1 },
+  summaryValue: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  summaryLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500', marginTop: 3 },
+  summaryDivider: { width: 1, height: 36, backgroundColor: COLORS.border },
+
+  // Class Card
   classCard: {
-    backgroundColor: '#fff', borderRadius: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3, overflow: 'hidden',
+    backgroundColor: COLORS.card,
+    borderRadius:    18,
+    marginBottom:    14,
+    flexDirection:   'row',
+    overflow:        'hidden',
+    shadowColor:     COLORS.shadow,
+    shadowOffset:    { width: 0, height: 3 },
+    shadowOpacity:   0.07,
+    shadowRadius:    10,
+    elevation:       4,
   },
-  classCardHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', padding: 16,
+  classAccentBar:  { width: 5 },
+  classCardInner:  { flex: 1, padding: 16 },
+  classCardTop: {
+    flexDirection:  'row',
+    justifyContent: 'space-between',
+    alignItems:     'flex-start',
+    marginBottom:   10,
   },
-  classCardLeft: {},
-  classCardName: { fontSize: 18, fontWeight: '800', color: '#fff' },
-  classCardMeta: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 3 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
-  previewChip: {
-    backgroundColor: '#F0F7F3', borderRadius: 50,
-    paddingHorizontal: 12, paddingVertical: 5,
+  classCardTitles: { flex: 1, marginRight: 10 },
+  className:   { fontSize: 17, fontWeight: '700', color: COLORS.text },
+  classSubject: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '500', marginTop: 4 },
+  studentBadge: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: 10,
+    paddingVertical:   5,
+    borderRadius:      10,
+    gap:               4,
   },
-  previewChipTxt: { fontSize: 12, fontWeight: '600', color: Colors.primary },
+  studentBadgeIcon: { fontSize: 14 },
+  studentBadgeText: { fontSize: 14, fontWeight: '800' },
+  metaRow:     { flexDirection: 'row', gap: 8, marginBottom: 2, flexWrap: 'wrap' },
+  metaChip: {
+    backgroundColor:   COLORS.background,
+    borderRadius:      8,
+    paddingHorizontal: 10,
+    paddingVertical:   4,
+    borderWidth:       1,
+    borderColor:       COLORS.border,
+  },
+  metaChipText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  classCardDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 12 },
+  takeAttendanceBtn: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'center',
+    borderRadius:    10,
+    paddingVertical: 11,
+    gap:             6,
+  },
+  takeAttendanceBtnIcon: { fontSize: 15 },
+  takeAttendanceBtnText: { fontSize: 13, fontWeight: '700' },
 
-  // ── Detail view sections ──
-  sectionHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 8,
-  },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1C1C1C' },
+  // Loader
+  loaderWrapper: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loaderText:    { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
 
-  // ── Card wrapper ──
-  card: {
-    backgroundColor: '#fff', borderRadius: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, overflow: 'hidden',
+  // Empty
+  emptyWrapper: { paddingTop: 40 },
+  emptyCard: {
+    backgroundColor: COLORS.card,
+    borderRadius:    18,
+    padding:         36,
+    alignItems:      'center',
+    borderWidth:     1.5,
+    borderStyle:     'dashed',
+    borderColor:     COLORS.border,
+  },
+  emptyIcon:    { fontSize: 40, marginBottom: 12 },
+  emptyTitle:   { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
+  emptySubText: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
+
+  // ── Bottom Sheet ─────────────────────────────────────────────────────────────
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000000',
+  },
+  sheet: {
+    position:              'absolute',
+    bottom:                0,
+    left:                  0,
+    right:                 0,
+    height:                SCREEN_HEIGHT * 0.80,
+    backgroundColor:       COLORS.card,
+    borderTopLeftRadius:   28,
+    borderTopRightRadius:  28,
+    paddingTop:            12,
+    shadowColor:           '#000',
+    shadowOffset:          { width: 0, height: -4 },
+    shadowOpacity:         0.14,
+    shadowRadius:          20,
+    elevation:             24,
+  },
+  dragHandle: {
+    width:           44,
+    height:          5,
+    borderRadius:    3,
+    backgroundColor: COLORS.border,
+    alignSelf:       'center',
+    marginBottom:    16,
   },
 
-  // ── Student row ──
+  // Sheet header
+  sheetHeader: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    paddingHorizontal: 20,
+    marginBottom:    16,
+  },
+  sheetHeaderLeft: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           12,
+    flex:          1,
+  },
+  sheetClassIcon: {
+    width:          48,
+    height:         48,
+    borderRadius:   14,
+    alignItems:     'center',
+    justifyContent: 'center',
+  },
+  sheetClassIconText: { fontSize: 24 },
+  sheetClassName: {
+    fontSize:   18,
+    fontWeight: '700',
+    color:      COLORS.text,
+  },
+  sheetSubjectName: {
+    fontSize:   13,
+    color:      COLORS.textSecondary,
+    fontWeight: '500',
+    marginTop:  2,
+  },
+  closeBtn: {
+    width:           36,
+    height:          36,
+    borderRadius:    18,
+    backgroundColor: COLORS.background,
+    alignItems:      'center',
+    justifyContent:  'center',
+    borderWidth:     1,
+    borderColor:     COLORS.border,
+  },
+  closeBtnText: { fontSize: 14, color: COLORS.textSecondary, fontWeight: '700' },
+
+  // Teacher row
+  teacherRow: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    gap:             12,
+    marginHorizontal: 20,
+    backgroundColor: COLORS.primaryLight,
+    borderRadius:    14,
+    padding:         14,
+    marginBottom:    16,
+  },
+  teacherAvatar: {
+    width:           44,
+    height:          44,
+    borderRadius:    22,
+    backgroundColor: COLORS.primary,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  teacherAvatarText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  teacherLabel: { fontSize: 11, color: COLORS.primary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
+  teacherName:  { fontSize: 15, fontWeight: '700', color: COLORS.text, marginTop: 1 },
+
+  // Student count row
+  studentCountRow: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    paddingHorizontal: 20,
+    marginBottom:    12,
+  },
+  studentCountTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  studentCountPill: {
+    backgroundColor:   COLORS.primary,
+    borderRadius:      20,
+    paddingHorizontal: 12,
+    paddingVertical:   4,
+  },
+  studentCountPillText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+
+  // Sheet loader / empty
+  sheetLoader: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  sheetLoaderText: { fontSize: 14, color: COLORS.textSecondary },
+  sheetEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  sheetEmptyIcon: { fontSize: 40 },
+  sheetEmptyText: { fontSize: 14, color: COLORS.textSecondary, fontWeight: '500' },
+
+  // Student scroll
+  studentScroll:        { flex: 1 },
+  studentScrollContent: { paddingHorizontal: 20, paddingTop: 4 },
+
+  // Student row
   studentRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 12, gap: 10,
-    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
+    flexDirection:   'row',
+    alignItems:      'center',
+    gap:             12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  rollBadge: {
-    width: 34, height: 34, borderRadius: 8,
-    backgroundColor: '#F0F7F3', alignItems: 'center', justifyContent: 'center',
+  studentIndex: {
+    fontSize:   13,
+    fontWeight: '700',
+    color:      COLORS.textLight,
+    width:      22,
+    textAlign:  'right',
   },
-  rollNo: { fontSize: 12, fontWeight: '700', color: Colors.primary },
-  studentInfo: { flex: 1 },
-  studentName: { fontSize: 14, fontWeight: '600', color: '#1C1C1C' },
-  enrollNo: { fontSize: 12, color: '#6B6B6B', marginTop: 1 },
-
-  // ── Subject chip (detail view — read-only) ──
-  subjectChip: {
-    padding: 14, borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
+  studentAvatar: {
+    width:          42,
+    height:         42,
+    borderRadius:   21,
+    alignItems:     'center',
+    justifyContent: 'center',
   },
-  subjectChipName: { fontSize: 14, fontWeight: '700', color: '#1C1C1C' },
-  subjectChipMeta: { fontSize: 12, color: '#6B6B6B', marginTop: 3 },
-
-  // ── Empty state ──
-  emptyState: { padding: 24, alignItems: 'center', gap: 8 },
-  emptyEmoji: { fontSize: 32 },
-  emptyTxt: { fontSize: 13, color: '#9E9E9E', textAlign: 'center' },
+  studentAvatarText: { fontSize: 15, fontWeight: '700' },
+  studentInfo:  { flex: 1 },
+  studentName:  { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  studentEmail: { fontSize: 12, color: COLORS.textLight, marginTop: 2 },
 });
+
+export default ClassesScreen;

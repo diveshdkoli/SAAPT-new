@@ -7,13 +7,11 @@ import { createUser } from './auth';
 export const seedAdmin = async () => {
   try {
     await createUser(
-      'admin',        // username — login with this
-      'admin123',     // password — change this after first login
+      'admin@saapt.app',   // email now
+      'admin123',
       {
         full_name: 'Super Admin',
-        email:     'admin@saapt.app',
-        phone:     '',
-        role:      'admin',
+        role: 'admin',
       }
     );
     console.log('✅ Admin account created successfully');

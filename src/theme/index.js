@@ -1,21 +1,35 @@
 export const Colors = {
-  primary: '#2F6F4E',
-  primaryDark: '#1E4D35',
-  primaryLight: '#E6F0EA',
-  white: '#FFFFFF',
-  background: '#F4F7F5',
-  cardBg: '#FFFFFF',
-  titleText: '#1C1C1C',
-  subtitleText: '#6B6B6B',
-  inputBorder: '#E0E0E0',
-  inputPlaceholder: '#9E9E9E',
-  disabledBtn: '#D6D6D6',
-  disabledText: '#8A8A8A',
-  snackbar: '#2C2C2C',
-  error: '#D94F4F',
-  success: '#2F6F4E',
-};
+  // 🔵 Brand Colors
+  primary: '#1565C0',        // Main Blue
+  primaryDark: '#0D47A1',    // Deep Navy Blue
+  primaryLight: '#E3F2FD',   // Very Light Blue
 
+  // ⚪ Base
+  white: '#FFFFFF',
+  background: '#F4F7FB',     // Soft blue-grey background
+  cardBg: '#FFFFFF',
+
+  // 📝 Text
+  titleText: '#0A1F44',      // Dark navy text
+  subtitleText: '#5F6C7B',
+
+  // 📦 Inputs
+  inputBorder: '#DCE3EA',
+  inputPlaceholder: '#9AA5B1',
+
+  // 🚫 Disabled
+  disabledBtn: '#D6DCE3',
+  disabledText: '#8A96A3',
+
+  // 🔔 Snackbar
+  snackbar: '#1E293B',
+
+  // 📊 Attendance Status Colors
+  success: '#2E7D32',        // Present (Green)
+  warning: '#F9A825',        // Late (Yellow)
+  error: '#C62828',          // Absent (Red)
+  leave: '#42A5F5',          // Leave (Light Blue)
+};
 export const Typography = {
   fontBold: { fontWeight: '700' },
   fontMedium: { fontWeight: '500' },

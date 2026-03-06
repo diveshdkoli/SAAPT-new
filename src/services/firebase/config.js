@@ -4,21 +4,27 @@ import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
-  apiKey:            "AIzaSyB_VbyXqeGnxQ_S6_cn7L8u1sPG_XiCSbE",
-  authDomain:        "saapt-863fc.firebaseapp.com",
-  projectId:         "saapt-863fc",
-  storageBucket:     "saapt-863fc.firebasestorage.app",
-  messagingSenderId: "758554569710",
-  appId:             "1:758554569710:web:b3a409d25d568f9af83cff"
+  apiKey: "AIzaSyAmvBa6G9kt6Vrjx0_tf_QJoKAwMPrMSLA",
+  authDomain: "saapt-new.firebaseapp.com",
+  projectId: "saapt-new",
+  storageBucket: "saapt-new.firebasestorage.app",
+  messagingSenderId: "1084667160499",
+  appId: "1:1084667160499:web:9f45f6cf28de68c4090dc6"
 };
 
-// Only initialize if not already initialized
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+// Initialize Firebase only if not already initialized
+const app = getApps().length === 0
+  ? initializeApp(firebaseConfig)
+  : getApp();
 
+// Initialize Auth with AsyncStorage persistence (IMPORTANT for React Native)
 export const auth = getApps().length === 0
-  ? initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) })
+  ? initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    })
   : getAuth(app);
 
+// Initialize Firestore
 export const db = getFirestore(app);
 
 export default app;

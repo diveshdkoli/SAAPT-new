@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   StatusBar, ScrollView, Animated, Dimensions,
@@ -6,16 +6,21 @@ import {
 } from 'react-native';
 import { Alert } from 'react-native';
 import { loginUser } from '../../services/firebase/auth';
+// import { seedAdmin } from '../../services/firebase/seed';
 import { Colors } from '../../theme';
 const { height } = Dimensions.get('window');
 
+
 const LoginScreen = ({ navigation, onLogin }) => {
   const [role, setRole] = useState('teacher');
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  //   useEffect(() => {
+  //   seedAdmin();
+  // }, []);
 
   const switchRole = (selectedRole) => {
     if (selectedRole === role) return;
@@ -25,7 +30,7 @@ const LoginScreen = ({ navigation, onLogin }) => {
       friction: 6,
     }).start();
     setRole(selectedRole);
-    setUsername('');
+    setEmail('');
     setPassword('');
   };
 
@@ -34,20 +39,20 @@ const LoginScreen = ({ navigation, onLogin }) => {
     outputRange: ['2%', '50%'],
   });
 
-  const isFormValid = username.trim().length > 0 && password.trim().length > 0;
+  const isFormValid = email.trim().length > 0 && password.trim().length > 0;
 
- const handleLogin = async () => {
-  if (!isFormValid) return;
-  setLoading(true);
-  try {
-    const userData = await loginUser(username, password);
-    onLogin(userData);
-  } catch (error) {
-    Alert.alert('Login Failed', error.message);
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleLogin = async () => {
+    if (!isFormValid) return;
+    setLoading(true);
+    try {
+      const userData = await loginUser(email, password);
+      onLogin(userData);
+    } catch (error) {
+      Alert.alert('Login Failed', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -83,15 +88,16 @@ const LoginScreen = ({ navigation, onLogin }) => {
 
             {/* Username */}
             <View style={styles.inputWrap}>
-              <Text style={styles.label}>Username</Text>
-              <View style={[styles.inputBox, username.length > 0 && styles.inputBoxActive]}>
+              <Text style={styles.label}>Email</Text>
+              <View style={[styles.inputBox, email.length > 0 && styles.inputBoxActive]}>
                 <Text style={styles.icon}>👤</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your username"
+                  placeholder="Enter your email"
                   placeholderTextColor={Colors.inputPlaceholder}
-                  value={username}
-                  onChangeText={setUsername}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />

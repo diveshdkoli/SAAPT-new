@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import AuthNavigator from './AuthNavigator';
 import TeacherNavigator from './TeacherNavigator';
 import StudentNavigator from './StudentNavigator';
+import AdminNavigator from './AdminNavigator';
 
 const RootNavigator = () => {
   const [authState, setAuthState] = useState({
@@ -22,6 +23,8 @@ const RootNavigator = () => {
     <NavigationContainer>
       {!authState.isLoggedIn ? (
         <AuthNavigator onLogin={handleLogin} />
+      ) : authState.role === 'admin' ? (         
+        <AdminNavigator onLogout={handleLogout} />
       ) : authState.role === 'teacher' ? (
         <TeacherNavigator onLogout={handleLogout} />
       ) : authState.role === 'student' ? (
