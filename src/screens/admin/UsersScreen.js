@@ -28,8 +28,33 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 
-import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { db, auth } from '../../services/firebase/config'; // adjust path as needed
+
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+
+// Secondary Firebase app — used ONLY for creating users
+// so admin auth session is NEVER interrupted
+const SECONDARY_APP_NAME = 'SecondaryApp';
+
+const getSecondaryAuth = () => {
+  const firebaseConfig = {
+    apiKey: "AIzaSyAmvBa6G9kt6Vrjx0_tf_QJoKAwMPrMSLA",
+    authDomain: "saapt-new.firebaseapp.com",
+    projectId: "saapt-new",
+    storageBucket: "saapt-new.firebasestorage.app",
+    messagingSenderId: "1084667160499",
+    appId: "1:1084667160499:web:9f45f6cf28de68c4090dc6"
+  };
+
+  // Reuse if already initialized
+  const existing = getApps().find(app => app.name === SECONDARY_APP_NAME);
+  if (existing) return getAuth(existing);
+
+  const secondaryApp = initializeApp(firebaseConfig, SECONDARY_APP_NAME);
+  return getAuth(secondaryApp);
+};
+
 
 // ─── Color Palette ────────────────────────────────────────────────────────────
 const COLORS = {
@@ -394,33 +419,42 @@ const UsersScreen = ({ navigation }) => {
   }, [users, selectedFilter, searchQuery]);
 
   const handleAddUser = async ({ name, email, password, phone, role }) => {
-    try {
-      // 1️⃣ Create user in Firebase Auth
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
-      const uid = credential.user.uid;
+  try {
+    // 1️⃣ Use SECONDARY auth instance — admin stays logged in
+    const secondaryAuth = getSecondaryAuth();
+    const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    const uid = credential.user.uid;
 
-      // 2️⃣ Prepare Firestore data
-      const newUser = { name, email, phone, role, uid, createdAt: serverTimestamp() };
+    // 2️⃣ Sign out from secondary app immediately — we don't need it anymore
+    await secondaryAuth.signOut();
 
-      // 3️⃣ Create Firestore document with UID as ID
-      await setDoc(doc(db, 'users', uid), newUser);
+    // 3️⃣ Write to Firestore using ADMIN's db instance (admin is still logged in)
+    const newUser = {
+      name,
+      email,
+      phone,
+      role,
+      uid,
+      createdAt: serverTimestamp(),
+    };
+    await setDoc(doc(db, 'users', uid), newUser);
 
-      // 4️⃣ Update local state for immediate UI
-      setUsers((prev) => [{ id: uid, ...newUser, createdAt: new Date() }, ...prev]);
+    // 4️⃣ Update local state
+    setUsers((prev) => [{ id: uid, ...newUser, createdAt: new Date() }, ...prev]);
+    setModalVisible(false);
+    Alert.alert('Success! 🎉', `${name} has been added as a ${role}.`);
 
-      // 5️⃣ Close modal & show success
-      setModalVisible(false);
-      Alert.alert('Success! 🎉', `${name} has been added as a ${role}.`);
-    } catch (error) {
-      console.log('Firebase error adding user:', error); // ✅ log full error
-      const msg =
-        error.code === 'auth/email-already-in-use' ? 'This email is already registered.' :
-          error.code === 'auth/invalid-email' ? 'Please enter a valid email address.' :
-            error.code === 'permission-denied' ? 'You do not have permission to add users.' :
-              'Failed to add user. Please check console for details.';
-      Alert.alert('Error', msg);
-    }
-  };
+  } catch (error) {
+    console.log('Firebase error adding user:', error);
+    const msg =
+      error.code === 'auth/email-already-in-use' ? 'This email is already registered.' :
+      error.code === 'auth/invalid-email'         ? 'Please enter a valid email address.' :
+      error.code === 'auth/weak-password'          ? 'Password must be at least 6 characters.' :
+      error.code === 'permission-denied'           ? 'Firestore rules are blocking this. Check Firebase Console.' :
+      `Failed to add user. Error: ${error.message}`;
+    Alert.alert('Error', msg);
+  }
+};
 
   const handleDelete = async (userId) => {
     try {

@@ -19,23 +19,23 @@ import { auth, db } from '../../services/firebase/config';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const COLORS = {
-  primary:        '#4F46E5',
-  primaryLight:   '#EEF2FF',
-  secondary:      '#06B6D4',
+  primary: '#4F46E5',
+  primaryLight: '#EEF2FF',
+  secondary: '#06B6D4',
   secondaryLight: '#ECFEFF',
-  success:        '#10B981',
-  successLight:   '#D1FAE5',
-  danger:         '#EF4444',
-  dangerLight:    '#FEF2F2',
-  warning:        '#F59E0B',
-  warningLight:   '#FEF3C7',
-  background:     '#F8F9FE',
-  card:           '#FFFFFF',
-  text:           '#1E1B4B',
-  textSecondary:  '#6B7280',
-  textLight:      '#9CA3AF',
-  border:         '#E5E7EB',
-  shadow:         '#1E1B4B',
+  success: '#10B981',
+  successLight: '#D1FAE5',
+  danger: '#EF4444',
+  dangerLight: '#FEF2F2',
+  warning: '#F59E0B',
+  warningLight: '#FEF3C7',
+  background: '#F8F9FE',
+  card: '#FFFFFF',
+  text: '#1E1B4B',
+  textSecondary: '#6B7280',
+  textLight: '#9CA3AF',
+  border: '#E5E7EB',
+  shadow: '#1E1B4B',
 };
 
 const AVATAR_PALETTE = [
@@ -111,13 +111,13 @@ const SettingsRow = ({ icon, label, sublabel, onPress, danger }) => (
 
 /** Edit Profile Modal */
 const EditProfileModal = ({ visible, profile, onSave, onClose }) => {
-  const [name,  setName]  = useState(profile?.name  || '');
+  const [name, setName] = useState(profile?.name || '');
   const [phone, setPhone] = useState(profile?.phone || '');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (visible) {
-      setName(profile?.name  || '');
+      setName(profile?.name || '');
       setPhone(profile?.phone || '');
     }
   }, [visible, profile]);
@@ -193,12 +193,12 @@ const EditProfileModal = ({ visible, profile, onSave, onClose }) => {
 };
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-const ProfileScreen = ({ navigation }) => {
-  const [profile,    setProfile]    = useState(null);
-  const [loading,    setLoading]    = useState(true);
+const ProfileScreen = ({ navigation, onLogout }) => {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [editModal,  setEditModal]  = useState(false);
-  const [resetSent,  setResetSent]  = useState(false);
+  const [editModal, setEditModal] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   // ── Fetch profile ────────────────────────────────────────────────────────
   const fetchProfile = useCallback(async () => {
@@ -275,7 +275,7 @@ const ProfileScreen = ({ navigation }) => {
           onPress: async () => {
             try {
               await signOut(auth);
-              navigation?.replace('Login');
+              if (onLogout) onLogout();
             } catch (err) {
               console.error('signOut error:', err);
               Alert.alert('Error', 'Logout failed. Please try again.');
@@ -287,10 +287,10 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   // ── Avatar derived values ─────────────────────────────────────────────────
-  const initials  = getInitials(profile?.name);
-  const avatar    = avatarColor(profile?.name || '');
-  const classes   = profile?.classes ?? [];
-  const fireUser  = auth.currentUser;
+  const initials = getInitials(profile?.name);
+  const avatar = avatarColor(profile?.name || '');
+  const classes = profile?.classes ?? [];
+  const fireUser = auth.currentUser;
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -351,17 +351,17 @@ const ProfileScreen = ({ navigation }) => {
           {/* ═══════════════════ PERSONAL INFO ═══════════════════ */}
           <Section title="Personal Information">
             <View style={styles.card}>
-              <InfoRow icon="👤" label="Full Name"    value={profile?.name} />
+              <InfoRow icon="👤" label="Full Name" value={profile?.name} />
               <View style={styles.divider} />
-              <InfoRow icon="📧" label="Email"        value={profile?.email || fireUser?.email} />
+              <InfoRow icon="📧" label="Email" value={profile?.email || fireUser?.email} />
               <View style={styles.divider} />
-              <InfoRow icon="📱" label="Phone"        value={profile?.phone} />
+              <InfoRow icon="📱" label="Phone" value={profile?.phone} />
               <View style={styles.divider} />
-              <InfoRow icon="🏷️" label="Role"         value="Teacher" />
+              <InfoRow icon="🏷️" label="Role" value="Teacher" />
             </View>
           </Section>
 
-          {/* ═══════════════════ ASSIGNED CLASSES ═══════════════════ */}
+          {/* ═══════════════════ ASSIGNED CLASSES ═══════════════════
           <Section title={`Assigned Classes  (${classes.length})`}>
             {classes.length === 0 ? (
               <View style={styles.emptyCard}>
@@ -380,7 +380,7 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               </View>
             )}
-          </Section>
+          </Section> */}
 
           {/* ═══════════════════ ACCOUNT INFO ═══════════════════ */}
           <Section title="Account Information">
@@ -421,9 +421,9 @@ const ProfileScreen = ({ navigation }) => {
           {/* ═══════════════════ APP INFO ═══════════════════ */}
           <Section title="App Information">
             <View style={styles.card}>
-              <InfoRow icon="📱" label="App Version"   value="1.0.0" />
+              <InfoRow icon="📱" label="App Version" value="1.0.0" />
               <View style={styles.divider} />
-              <InfoRow icon="🏫" label="Developed By"  value="SAAPT Team" />
+              <InfoRow icon="🏫" label="Developed By" value="SAAPT Team" />
             </View>
           </Section>
 
@@ -459,67 +459,67 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    backgroundColor:         COLORS.primary,
-    paddingTop:              52,
-    paddingHorizontal:       20,
-    paddingBottom:           24,
-    borderBottomLeftRadius:  28,
+    backgroundColor: COLORS.primary,
+    paddingTop: 52,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
   },
-  headerTop:       { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)',
   },
-  backBtnIcon:     { color: '#FFFFFF', fontSize: 18, fontWeight: '700', lineHeight: 22 },
+  backBtnIcon: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', lineHeight: 22 },
   headerTextGroup: { flex: 1 },
-  headerTitle:     { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
-  headerSubtitle:  { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 3, fontWeight: '500' },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
+  headerSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 3, fontWeight: '500' },
 
   // Scroll
-  scroll:        { flex: 1 },
+  scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 18, paddingTop: 24 },
 
   // Profile card
   profileCard: {
     backgroundColor: COLORS.card,
-    borderRadius:    22,
-    alignItems:      'center',
+    borderRadius: 22,
+    alignItems: 'center',
     paddingVertical: 28,
     paddingHorizontal: 24,
-    marginBottom:    24,
-    shadowColor:     COLORS.shadow,
-    shadowOffset:    { width: 0, height: 4 },
-    shadowOpacity:   0.08,
-    shadowRadius:    14,
-    elevation:       5,
+    marginBottom: 24,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 5,
   },
   avatarCircle: {
     width: 80, height: 80, borderRadius: 40,
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 14,
-    shadowColor:  COLORS.shadow,
+    shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 4,
   },
   avatarInitials: { fontSize: 28, fontWeight: '800', letterSpacing: 1 },
-  profileName:    { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 8 },
+  profileName: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 8 },
   roleBadge: {
-    backgroundColor:   COLORS.primaryLight,
-    borderRadius:      12,
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical:   5,
-    marginBottom:      10,
+    paddingVertical: 5,
+    marginBottom: 10,
   },
   roleBadgeText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
-  profileEmail:  { fontSize: 13, color: COLORS.textSecondary, fontWeight: '500' },
+  profileEmail: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '500' },
 
   // Section
-  section:      { marginBottom: 20 },
+  section: { marginBottom: 20 },
   sectionTitle: {
     fontSize: 12, fontWeight: '700', color: COLORS.textSecondary,
     letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10, marginLeft: 4,
@@ -528,32 +528,32 @@ const styles = StyleSheet.create({
   // Card
   card: {
     backgroundColor: COLORS.card,
-    borderRadius:    16,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical:   4,
-    shadowColor:     COLORS.shadow,
-    shadowOffset:    { width: 0, height: 2 },
-    shadowOpacity:   0.06,
-    shadowRadius:    8,
-    elevation:       3,
+    paddingVertical: 4,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
 
   // Info row
   infoRow: {
-    flexDirection:   'row',
-    alignItems:      'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 14,
-    gap:             14,
+    gap: 14,
   },
   infoIconWrap: {
     width: 36, height: 36, borderRadius: 10,
     backgroundColor: COLORS.primaryLight,
     alignItems: 'center', justifyContent: 'center',
   },
-  infoIcon:      { fontSize: 16 },
+  infoIcon: { fontSize: 16 },
   infoTextGroup: { flex: 1 },
-  infoLabel:     { fontSize: 11, fontWeight: '600', color: COLORS.textLight, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
-  infoValue:     { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  infoLabel: { fontSize: 11, fontWeight: '600', color: COLORS.textLight, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  infoValue: { fontSize: 14, fontWeight: '600', color: COLORS.text },
 
   // Divider
   divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 50 },
@@ -564,32 +564,32 @@ const styles = StyleSheet.create({
     gap: 8, paddingVertical: 14,
   },
   classPill: {
-    backgroundColor:   COLORS.primaryLight,
-    borderRadius:      20,
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: 20,
     paddingHorizontal: 14,
-    paddingVertical:   7,
-    borderWidth:       1,
-    borderColor:       '#C7D2FE',
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
   },
   classPillText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
 
   // Settings row
   settingsRow: {
-    flexDirection:   'row',
-    alignItems:      'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 14,
-    gap:             14,
+    gap: 14,
   },
   settingsIconWrap: {
     width: 36, height: 36, borderRadius: 10,
     backgroundColor: COLORS.primaryLight,
     alignItems: 'center', justifyContent: 'center',
   },
-  settingsIcon:     { fontSize: 16 },
-  settingsMeta:     { flex: 1 },
-  settingsLabel:    { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  settingsIcon: { fontSize: 16 },
+  settingsMeta: { flex: 1 },
+  settingsLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text },
   settingsSublabel: { fontSize: 12, color: COLORS.textLight, marginTop: 2 },
-  settingsChevron:  { fontSize: 22, color: COLORS.textLight, fontWeight: '300' },
+  settingsChevron: { fontSize: 22, color: COLORS.textLight, fontWeight: '300' },
 
   // Empty card
   emptyCard: {
@@ -597,12 +597,12 @@ const styles = StyleSheet.create({
     padding: 32, alignItems: 'center',
     borderWidth: 1.5, borderStyle: 'dashed', borderColor: COLORS.border,
   },
-  emptyIcon:    { fontSize: 36, marginBottom: 10 },
-  emptyTitle:   { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
+  emptyIcon: { fontSize: 36, marginBottom: 10 },
+  emptyTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
   emptySubText: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
 
   // Loader
-  centerLoader:    { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  centerLoader: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   centerLoaderTxt: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
 
   // Modal
@@ -611,40 +611,40 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor:     COLORS.card,
+    backgroundColor: COLORS.card,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    padding:             24,
-    paddingBottom:       Platform.OS === 'ios' ? 44 : 28,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 28,
   },
   modalHandle: {
     width: 44, height: 5, borderRadius: 3,
     backgroundColor: COLORS.border,
     alignSelf: 'center', marginBottom: 22,
   },
-  modalTitle:    { fontSize: 19, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
+  modalTitle: { fontSize: 19, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
   modalSubtitle: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 22 },
 
   // Inputs
-  inputGroup:  { marginBottom: 16 },
-  inputLabel:  { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6, letterSpacing: 0.5, textTransform: 'uppercase' },
+  inputGroup: { marginBottom: 16 },
+  inputLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6, letterSpacing: 0.5, textTransform: 'uppercase' },
   textInput: {
     backgroundColor: COLORS.background,
-    borderRadius:    12,
-    borderWidth:     1.5,
-    borderColor:     COLORS.border,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
     paddingHorizontal: 14,
-    paddingVertical:   12,
-    fontSize:        14,
-    color:           COLORS.text,
-    fontWeight:      '500',
+    paddingVertical: 12,
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '500',
   },
 
   modalNotice: {
     backgroundColor: COLORS.warningLight,
-    borderRadius:    10,
-    padding:         12,
-    marginBottom:    22,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 22,
   },
   modalNoticeText: { fontSize: 12, color: COLORS.warning, fontWeight: '600', lineHeight: 18 },
 

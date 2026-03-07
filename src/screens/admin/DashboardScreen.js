@@ -327,7 +327,7 @@ const DashboardScreen = ({ navigation }) => {
           ))}
         </View>
 
-        {/* ── Section: Quick Actions ── */}
+        {/* ── Section: Quick Actions ──
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.actionsGrid}>
           {QUICK_ACTIONS.map((action) => (
@@ -337,7 +337,7 @@ const DashboardScreen = ({ navigation }) => {
               onPress={handleQuickAction}
             />
           ))}
-        </View>
+        </View> */}
 
         {/* ── Section: Recent Activity ── */}
         <View style={styles.activityHeader}>

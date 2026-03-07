@@ -27,25 +27,25 @@ import { db, auth } from '../../services/firebase/config'; // adjust path as nee
 
 // ─── Color Palette (consistent with all SAAPT screens) ───────────────────────
 const COLORS = {
-  primary:        '#4F46E5',
-  primaryLight:   '#EEF2FF',
-  secondary:      '#06B6D4',
+  primary: '#4F46E5',
+  primaryLight: '#EEF2FF',
+  secondary: '#06B6D4',
   secondaryLight: '#ECFEFF',
-  success:        '#10B981',
-  successLight:   '#D1FAE5',
-  danger:         '#EF4444',
-  dangerLight:    '#FEF2F2',
-  warning:        '#F59E0B',
-  warningLight:   '#FEF3C7',
-  background:     '#F8F9FE',
-  card:           '#FFFFFF',
-  text:           '#1E1B4B',
-  textSecondary:  '#6B7280',
-  textLight:      '#9CA3AF',
-  border:         '#E5E7EB',
-  inputBg:        '#F3F4F6',
-  shadow:         '#1E1B4B',
-  modalOverlay:   'rgba(30, 27, 75, 0.5)',
+  success: '#10B981',
+  successLight: '#D1FAE5',
+  danger: '#EF4444',
+  dangerLight: '#FEF2F2',
+  warning: '#F59E0B',
+  warningLight: '#FEF3C7',
+  background: '#F8F9FE',
+  card: '#FFFFFF',
+  text: '#1E1B4B',
+  textSecondary: '#6B7280',
+  textLight: '#9CA3AF',
+  border: '#E5E7EB',
+  inputBg: '#F3F4F6',
+  shadow: '#1E1B4B',
+  modalOverlay: 'rgba(30, 27, 75, 0.5)',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -66,20 +66,20 @@ const formatDate = (timestamp) => {
 };
 
 const ROLE_LABELS = {
-  admin:   { label: 'Admin',   color: COLORS.primary,  bg: COLORS.primaryLight  },
+  admin: { label: 'Admin', color: COLORS.primary, bg: COLORS.primaryLight },
   teacher: { label: 'Teacher', color: COLORS.secondary, bg: COLORS.secondaryLight },
-  student: { label: 'Student', color: COLORS.success,   bg: COLORS.successLight  },
+  student: { label: 'Student', color: COLORS.success, bg: COLORS.successLight },
 };
 
 // ─── Edit Profile Modal ───────────────────────────────────────────────────────
 const EditProfileModal = ({ visible, userData, onClose, onSave }) => {
-  const [name,    setName]    = useState(userData?.name  || '');
-  const [phone,   setPhone]   = useState(userData?.phone || '');
-  const [saving,  setSaving]  = useState(false);
+  const [name, setName] = useState(userData?.name || '');
+  const [phone, setPhone] = useState(userData?.phone || '');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (visible) {
-      setName(userData?.name  || '');
+      setName(userData?.name || '');
       setPhone(userData?.phone || '');
     }
   }, [visible, userData]);
@@ -211,11 +211,11 @@ const ActionButton = ({ icon, label, subtitle, color, bg, onPress, isLast }) => 
 );
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-const ProfileScreen = ({ navigation }) => {
-  const [userData,     setUserData]     = useState(null);
-  const [loading,      setLoading]      = useState(true);
-  const [editVisible,  setEditVisible]  = useState(false);
-  const [loggingOut,   setLoggingOut]   = useState(false);
+const ProfileScreen = ({ navigation, onLogout }) => {
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [editVisible, setEditVisible] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const currentUser = auth.currentUser;
 
@@ -230,10 +230,10 @@ const ProfileScreen = ({ navigation }) => {
         } else {
           // Fallback to auth data
           setUserData({
-            name:      currentUser.displayName || 'Admin',
-            email:     currentUser.email       || '',
-            role:      'admin',
-            phone:     '',
+            name: currentUser.displayName || 'Admin',
+            email: currentUser.email || '',
+            role: 'admin',
+            phone: '',
             createdAt: null,
           });
         }
@@ -299,7 +299,7 @@ const ProfileScreen = ({ navigation }) => {
             setLoggingOut(true);
             try {
               await signOut(auth);
-              navigation?.replace('AuthNavigator');
+              if (onLogout) onLogout();
             } catch (e) {
               console.error('Logout error:', e);
               Alert.alert('Error', 'Failed to logout. Please try again.');
@@ -328,8 +328,8 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   // ── Derived values ─────────────────────────────────────────────────────────
-  const initials  = getInitials(userData?.name || '');
-  const roleConf  = ROLE_LABELS[userData?.role] || ROLE_LABELS.admin;
+  const initials = getInitials(userData?.name || '');
+  const roleConf = ROLE_LABELS[userData?.role] || ROLE_LABELS.admin;
 
   // ─── Render ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -391,10 +391,10 @@ const ProfileScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          <InfoRow icon="👤" label="Full Name"    value={userData?.name}                         />
-          <InfoRow icon="📧" label="Email"        value={userData?.email}                        />
-          <InfoRow icon="📞" label="Phone"        value={userData?.phone || 'Not set'}           />
-          <InfoRow icon="🎭" label="Role"         value={roleConf.label}                         />
+          <InfoRow icon="👤" label="Full Name" value={userData?.name} />
+          <InfoRow icon="📧" label="Email" value={userData?.email} />
+          <InfoRow icon="📞" label="Phone" value={userData?.phone || 'Not set'} />
+          <InfoRow icon="🎭" label="Role" value={roleConf.label} />
           <InfoRow icon="📅" label="Member Since" value={formatDate(userData?.createdAt)} isLast />
         </View>
 
