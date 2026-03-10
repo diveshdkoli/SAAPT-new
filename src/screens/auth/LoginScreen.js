@@ -124,6 +124,15 @@ const LoginScreen = ({ navigation, onLogin }) => {
               </View>
             </View>
 
+            {/* Forgot Password */}
+            <TouchableOpacity
+              style={styles.forgotBtn}
+              onPress={() => navigation.navigate('ForgotPassword')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.forgotTxt}>Forgot Password?</Text>
+            </TouchableOpacity>
+
             {/* Login Button */}
             <TouchableOpacity
               style={[styles.btn, !isFormValid && styles.btnDisabled]}
@@ -209,4 +218,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'center' },
   rowTxt: { fontSize: 14, color: '#6B6B6B' },
   rowLink: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+  forgotBtn: { alignItems: 'center', marginTop: 12, marginBottom: 4 },
+  forgotTxt: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
 });
