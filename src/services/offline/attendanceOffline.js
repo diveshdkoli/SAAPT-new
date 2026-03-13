@@ -66,6 +66,7 @@ export const initOfflineDB = async () => {
       date         TEXT NOT NULL,
       records      TEXT NOT NULL,
       saved_at     TEXT NOT NULL,
+      session_type TEXT NOT NULL DEFAULT 'lecture',
       synced       INTEGER DEFAULT 0
     );
 
@@ -96,6 +97,19 @@ export const initOfflineDB = async () => {
       value TEXT NOT NULL
     );
   `);
+  // ── Migration: add session_type column if it doesn't exist yet ──────────
+  // WHY: devices that ran the app before this column was added won't have it.
+  //      ALTER TABLE ADD COLUMN is safe to run even if column already exists
+  //      because we catch the error silently.
+  try {
+    await db_local.execAsync(
+      `ALTER TABLE attendance_sessions ADD COLUMN session_type TEXT NOT NULL DEFAULT 'lecture';`
+    );
+    console.log('✅ Migration: session_type column added');
+  } catch {
+    // Column already exists — this is expected on fresh installs, safe to ignore
+  }
+
   console.log('✅ Offline DB ready (saapt_offline.db)');
 };
 
@@ -119,8 +133,8 @@ export const saveAttendanceOffline = async (sessionData) => {
   // WHY: This ALWAYS works, online or offline. Data is safe.
   await db_local.runAsync(
     `INSERT OR REPLACE INTO attendance_sessions
-      (local_id, class_id, class_name, subject_id, subject_name, teacher_id, date, records, saved_at, synced)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      (local_id, class_id, class_name, subject_id, subject_name, teacher_id, date, records, saved_at, session_type, synced)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
     [
       localId,
       sessionData.classId,
@@ -131,6 +145,7 @@ export const saveAttendanceOffline = async (sessionData) => {
       sessionData.date,
       JSON.stringify(sessionData.records),
       savedAt,
+      sessionData.sessionType ?? 'lecture',
     ]
   );
 
@@ -196,8 +211,9 @@ export const syncPendingToFirestore = async () => {
         teacherId:   session.teacher_id,
         date:        session.date,
         records:     records,
+        sessionType: session.session_type ?? 'lecture',
         savedAt:     serverTimestamp(),
-        syncedFrom:  'offline', // flag so we know it came from offline queue
+        syncedFrom:  'offline',
       });
 
       // Mark as synced in SQLite

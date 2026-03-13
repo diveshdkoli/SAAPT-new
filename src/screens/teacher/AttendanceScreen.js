@@ -882,6 +882,7 @@ export default function TeacherAttendanceScreen() {
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
+  const [sessionType,setSessionType]= useState('lecture');
   const [usingCache, setUsingCache] = useState(false);
   const [lastSync, setLastSync] = useState(null);
   const [error, setError] = useState('');
@@ -1040,6 +1041,7 @@ export default function TeacherAttendanceScreen() {
                 subjectName: selected.subjectName,
                 teacherId: auth.currentUser.uid,
                 date: todayStr(),
+                sessionType: sessionType,
                 records,
               };
 
@@ -1235,6 +1237,34 @@ export default function TeacherAttendanceScreen() {
 
           {/* ── Submit button ── */}
           {selected && students.length > 0 && !submitted && (
+            <View style={s.sessionTypeCard}>
+              <Text style={s.sessionTypeLabel}>Session Type</Text>
+              <View style={s.sessionTypeRow}>
+                <TouchableOpacity
+                  style={[s.sessionTypeBtn, sessionType === 'lecture' && s.sessionTypeBtnActive]}
+                  onPress={() => setSessionType('lecture')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={s.sessionTypeBtnIcon}>📖</Text>
+                  <Text style={[s.sessionTypeBtnTxt, sessionType === 'lecture' && s.sessionTypeBtnTxtActive]}>
+                    Lecture
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.sessionTypeBtn, sessionType === 'practical' && s.sessionTypeBtnActivePractical]}
+                  onPress={() => setSessionType('practical')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={s.sessionTypeBtnIcon}>🔬</Text>
+                  <Text style={[s.sessionTypeBtnTxt, sessionType === 'practical' && s.sessionTypeBtnTxtActivePractical]}>
+                    Practical
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {selected && students.length > 0 && !submitted && (
             <TouchableOpacity
               style={[s.submitBtn, submitting && s.submitBtnDisabled]}
               activeOpacity={0.85}
@@ -1347,5 +1377,16 @@ const s = StyleSheet.create({
   newSessionTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
 
   errorCard: { backgroundColor: '#FEE2E2', borderRadius: 12, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#DC2626' },
-  errorTxt: { color: '#DC2626', fontSize: 13, fontWeight: '600' },
+  errorTxt:  { color: '#DC2626', fontSize: 13, fontWeight: '600' },
+
+  sessionTypeCard:    { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, elevation: 2 },
+  sessionTypeLabel:   { fontSize: 13, fontWeight: '700', color: '#0A1F44', marginBottom: 10 },
+  sessionTypeRow:     { flexDirection: 'row', gap: 10 },
+  sessionTypeBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1.5, borderColor: '#DCE3EA', borderRadius: 12, paddingVertical: 12, backgroundColor: '#F9FAFB' },
+  sessionTypeBtnActive:           { borderColor: '#1565C0', backgroundColor: '#E3F2FD' },
+  sessionTypeBtnActivePractical:  { borderColor: '#7C3AED', backgroundColor: '#F3E8FF' },
+  sessionTypeBtnIcon: { fontSize: 18 },
+  sessionTypeBtnTxt:  { fontSize: 14, fontWeight: '700', color: '#9AA5B1' },
+  sessionTypeBtnTxtActive:          { color: '#1565C0' },
+  sessionTypeBtnTxtActivePractical: { color: '#7C3AED' },
 });

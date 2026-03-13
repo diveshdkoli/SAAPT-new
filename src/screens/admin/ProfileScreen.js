@@ -437,7 +437,7 @@ const ProfileScreen = ({ navigation, onLogout }) => {
           />
         </View>
 
-        {/* ── Danger Zone ── */}
+        {/* ── Danger Zone ──
         <View style={[styles.sectionCard, styles.dangerCard]}>
           <Text style={[styles.cardTitle, { color: COLORS.danger }]}>Danger Zone</Text>
           <Text style={styles.dangerSubtext}>
@@ -450,7 +450,7 @@ const ProfileScreen = ({ navigation, onLogout }) => {
           >
             <Text style={styles.dangerBtnText}>🗑️  Delete Account</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         {/* App version footer */}
         <View style={styles.footer}>
