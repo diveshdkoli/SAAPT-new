@@ -887,7 +887,7 @@ export default function TeacherAttendanceScreen() {
   const [lastSync, setLastSync] = useState(null);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
-
+  const [view, setView] = useState('subjects');
   // ── Init SQLite + network listener ────────────────────────────────────────
   useEffect(() => {
     const setup = async () => {
@@ -970,6 +970,9 @@ export default function TeacherAttendanceScreen() {
     setAttendance({});
     setSubmitted(false);
     setLoadingStudents(true);
+    setView('marking');
+    // switch to full-screen marking view immediately
+    // loading spinner will show while students are being fetched
 
     try {
       // Read students from SQLite — works offline, no Firebase needed here.
@@ -995,6 +998,17 @@ export default function TeacherAttendanceScreen() {
     }
   };
 
+
+  // ── Go back to subject list ───────────────────────────────────────────────
+  // called by back button in marking view header
+  const goBackToSubjects = () => {
+    setView('subjects');       // switch back to subject list screen
+    setSelected(null);         // clear selected subject
+    setStudents([]);           // clear student list
+    setAttendance({});         // clear all attendance marks
+    setSubmitted(false);       // reset submitted state
+    setSessionType('lecture'); // reset session type to default
+  };
 
   // ── Toggle a student's attendance ─────────────────────────────────────────
   const toggleStudent = (uid) => {
@@ -1102,141 +1116,294 @@ export default function TeacherAttendanceScreen() {
     );
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // VIEW 1 — SUBJECT LIST
+  // shown when view === 'subjects'
+  // teacher sees all their assigned subjects as tappable cards
+  // tapping one calls selectAssignment() which switches to view === 'marking'
+  // ══════════════════════════════════════════════════════════════════════════
+  if (view === 'subjects') {
+    return (
+      <View style={s.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#1565C0" />
+
+        {/* ── Header ── */}
+        <View style={s.header}>
+          <Text style={s.headerTitle}>📝 Take Attendance</Text>
+          <Text style={s.headerSub}>{formatDate(todayStr())}</Text>
+
+          {/* Network pill + pending sync badge */}
+          <View style={s.statusRow}>
+            <View style={[s.netPill, { backgroundColor: isOnline ? '#DCFCE7' : '#FEE2E2' }]}>
+              <Text style={[s.netTxt, { color: isOnline ? '#16A34A' : '#DC2626' }]}>
+                {isOnline ? '🌐 Online' : '📴 Offline'}
+              </Text>
+            </View>
+            {usingCache && lastSync && (
+              <View style={s.cachePill}>
+                <Text style={s.cacheTxt}>
+                  💾 Cached · {new Date(lastSync).toLocaleDateString('en-IN')}
+                </Text>
+              </View>
+            )}
+            {pendingCount > 0 && (
+              <TouchableOpacity style={s.syncPill} onPress={handleManualSync} activeOpacity={0.8}>
+                <Text style={s.syncTxt}>⏳ {pendingCount} pending — Tap to sync</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={s.body}>
+
+            {/* Error message if any */}
+            {!!error && (
+              <View style={s.errorCard}>
+                <Text style={s.errorTxt}>⚠️ {error}</Text>
+              </View>
+            )}
+
+            {/* Section label */}
+            <Text style={s.sectionLabel}>SELECT SUBJECT</Text>
+            <Text style={s.sectionSub}>Tap a subject to begin marking attendance</Text>
+
+            {assignments.length === 0 ? (
+              <View style={s.emptyState}>
+                <Text style={s.emptyStateIcon}>📋</Text>
+                <Text style={s.emptyStateTitle}>No Subjects Assigned</Text>
+                <Text style={s.emptyStateSub}>Contact your admin to assign subjects.</Text>
+              </View>
+            ) : (
+              assignments.map((item, index) => (
+                // each subject is a full-width tappable card
+                // index % 2 gives alternating accent colors (blue / cyan)
+                <TouchableOpacity
+                  key={item.id}
+                  style={s.subjectCard}
+                  onPress={() => selectAssignment(item)}
+                  activeOpacity={0.82}
+                >
+                  {/* Left colored accent bar — alternates between primary and secondary */}
+                  <View style={[
+                    s.subjectAccent,
+                    { backgroundColor: index % 2 === 0 ? '#1565C0' : '#06B6D4' }
+                  ]} />
+
+                  <View style={s.subjectCardBody}>
+                    {/* Subject name — large and bold */}
+                    <Text style={s.subjectCardName}>{item.subjectName}</Text>
+                    {/* Class name below */}
+                    <Text style={s.subjectCardClass}>🏫  {item.className}</Text>
+                  </View>
+
+                  {/* Right arrow indicating this is tappable */}
+                  <Text style={s.subjectCardArrow}>›</Text>
+                </TouchableOpacity>
+              ))
+            )}
+
+            <View style={{ height: 32 }} />
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // VIEW 2 — MARKING SCREEN
+  // shown when view === 'marking' after teacher taps a subject
+  // full screen replacement — subject list is gone
+  // back button in header calls goBackToSubjects()
+  // ══════════════════════════════════════════════════════════════════════════
   return (
     <View style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1565C0" />
 
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <Text style={s.headerTitle}>📝 Take Attendance</Text>
-        <Text style={s.headerSub}>{formatDate(todayStr())}</Text>
+      {/* ── Marking Header — shows subject + class + back button ── */}
+      <View style={s.markingHeader}>
 
-        {/* Network + pending status */}
-        <View style={s.statusRow}>
-          <View style={[s.netPill, { backgroundColor: isOnline ? '#DCFCE7' : '#FEE2E2' }]}>
-            <Text style={[s.netTxt, { color: isOnline ? '#16A34A' : '#DC2626' }]}>
-              {isOnline ? '🌐 Online' : '📴 Offline'}
-            </Text>
-          </View>
-          {usingCache && lastSync && (
-            <View style={s.cachePill}>
-              <Text style={s.cacheTxt}>
-                💾 Offline data · {new Date(lastSync).toLocaleDateString('en-IN')}
-              </Text>
-            </View>
-          )}
-          {pendingCount > 0 && (
-            <TouchableOpacity
-              style={s.syncPill}
-              onPress={handleManualSync}
-              activeOpacity={0.8}
-            >
-              <Text style={s.syncTxt}>⏳ {pendingCount} pending — Tap to sync</Text>
-            </TouchableOpacity>
-          )}
+        {/* Back button — tapping goes back to subject list */}
+        <TouchableOpacity style={s.backBtn} onPress={goBackToSubjects} activeOpacity={0.8}>
+          <Text style={s.backBtnTxt}>‹</Text>
+          {/* ‹ is the left angle bracket character, looks like a back arrow */}
+        </TouchableOpacity>
+
+        <View style={s.markingHeaderText}>
+          {/* Subject name in header */}
+          <Text style={s.markingHeaderTitle} numberOfLines={1}>
+            {selected?.subjectName}
+          </Text>
+          {/* Class name below subject */}
+          <Text style={s.markingHeaderSub} numberOfLines={1}>
+            {selected?.className}  ·  {todayStr()}
+          </Text>
         </View>
+
+        {/* Online/offline pill — compact version in header */}
+        <View style={[s.netPillSmall, { backgroundColor: isOnline ? '#DCFCE7' : '#FEE2E2' }]}>
+          <Text style={[s.netTxtSmall, { color: isOnline ? '#16A34A' : '#DC2626' }]}>
+            {isOnline ? '🌐' : '📴'}
+          </Text>
+        </View>
+
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={s.body}>
+      {/* ── Loading students spinner ── */}
+      {loadingStudents ? (
+        <View style={s.centered}>
+          <ActivityIndicator size="large" color="#1565C0" />
+          <Text style={s.loadingTxt}>Loading students…</Text>
+        </View>
 
-          {!!error && (
-            <View style={s.errorCard}>
-              <Text style={s.errorTxt}>⚠️ {error}</Text>
+      ) : submitted ? (
+        // ── Success screen after submit ──────────────────────────────────────
+        // shown after successful submission
+        // "Take Another Session" resets and goes back to subject list
+        <View style={s.centeredFull}>
+          <Text style={s.successBigIcon}>{isOnline ? '✅' : '💾'}</Text>
+          <Text style={s.successBigTitle}>
+            {isOnline ? 'Attendance Submitted!' : 'Saved Offline!'}
+          </Text>
+          <Text style={s.successBigSub}>
+            {isOnline
+              ? 'Attendance uploaded to cloud successfully.'
+              : 'Saved locally. Will sync when internet returns.'}
+          </Text>
+          <TouchableOpacity
+            style={s.anotherBtn}
+            onPress={goBackToSubjects}
+            // goes back to subject list so teacher can take another session
+            activeOpacity={0.85}
+          >
+            <Text style={s.anotherBtnTxt}>← Back to Subjects</Text>
+          </TouchableOpacity>
+        </View>
+
+      ) : students.length === 0 ? (
+        // ── Empty state — no students in class ──────────────────────────────
+        <View style={s.centeredFull}>
+          <Text style={s.emptyStateIcon}>👥</Text>
+          <Text style={s.emptyStateTitle}>No Students Found</Text>
+          <Text style={s.emptyStateSub}>No students are enrolled in this class yet.</Text>
+          <TouchableOpacity style={s.anotherBtn} onPress={goBackToSubjects} activeOpacity={0.85}>
+            <Text style={s.anotherBtnTxt}>← Go Back</Text>
+          </TouchableOpacity>
+        </View>
+
+      ) : (
+        // ── Main marking UI ──────────────────────────────────────────────────
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={s.body}>
+
+            {/* ── Summary bar — shows live present/absent count ── */}
+            <View style={s.summaryBar}>
+              <View style={s.summaryBarItem}>
+                <Text style={[s.summaryBarVal, { color: '#16A34A' }]}>{presentCount}</Text>
+                <Text style={s.summaryBarLbl}>Present</Text>
+              </View>
+              <View style={s.summaryBarDivider} />
+              <View style={s.summaryBarItem}>
+                <Text style={[s.summaryBarVal, { color: '#DC2626' }]}>{absentCount}</Text>
+                <Text style={s.summaryBarLbl}>Absent</Text>
+              </View>
+              <View style={s.summaryBarDivider} />
+              <View style={s.summaryBarItem}>
+                <Text style={[s.summaryBarVal, { color: '#1565C0' }]}>{students.length}</Text>
+                <Text style={s.summaryBarLbl}>Total</Text>
+              </View>
             </View>
-          )}
 
-          {/* ── Step 1: Select class+subject ── */}
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Step 1 — Select Subject & Class</Text>
-            {assignments.length === 0 ? (
-              <Text style={s.emptyTxt}>No subjects assigned. Contact admin.</Text>
-            ) : (
-              assignments.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    s.assignOption,
-                    selected?.id === item.id && s.assignOptionSelected,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => selectAssignment(item)}
-                >
-                  <View style={s.assignOptionLeft}>
-                    <Text style={[s.assignSubject, selected?.id === item.id && s.assignSubjectSelected]}>
-                      {item.subjectName}
-                    </Text>
-                    <Text style={[s.assignClass, selected?.id === item.id && s.assignClassSelected]}>
-                      🏫 {item.className}
-                    </Text>
-                  </View>
-                  {selected?.id === item.id && (
-                    <Text style={s.checkmark}>✓</Text>
-                  )}
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-
-          {/* ── Step 2: Student list ── */}
-          {selected && (
-            <View style={s.card}>
-              <Text style={s.cardTitle}>Step 2 — Mark Attendance</Text>
-              <Text style={s.cardSub}>{selected.subjectName} · {selected.className}</Text>
-
-              {loadingStudents ? (
-                <ActivityIndicator size="small" color="#1565C0" style={{ marginVertical: 20 }} />
-              ) : students.length === 0 ? (
-                <Text style={s.emptyTxt}>No students in this class yet.</Text>
-              ) : (
-                <>
-                  {/* Mark all buttons */}
-                  <View style={s.markAllRow}>
-                    <TouchableOpacity style={s.markAllPresent} onPress={() => markAll('present')} activeOpacity={0.8}>
-                      <Text style={s.markAllTxt}>✓ All Present</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.markAllAbsent} onPress={() => markAll('absent')} activeOpacity={0.8}>
-                      <Text style={[s.markAllTxt, { color: '#DC2626' }]}>✗ All Absent</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Summary */}
-                  <View style={s.summaryRow}>
-                    <Text style={s.presentCount}>✓ {presentCount} present</Text>
-                    <Text style={s.absentCount}>✗ {absentCount} absent</Text>
-                  </View>
-
-                  {/* Student rows */}
-                  {students.map((student, i) => {
-                    const isPresent = attendance[student.uid] === 'present';
-                    return (
-                      <TouchableOpacity
-                        key={student.uid}
-                        style={[
-                          s.studentRow,
-                          i > 0 && s.studentDivider,
-                          isPresent ? s.studentPresent : s.studentAbsent,
-                        ]}
-                        activeOpacity={0.75}
-                        onPress={() => toggleStudent(student.uid)}
-                      >
-                        <View style={[s.studentStatusDot, { backgroundColor: isPresent ? '#16A34A' : '#DC2626' }]} />
-                        <Text style={s.studentName}>{student.name}</Text>
-                        <View style={[s.statusBadge, { backgroundColor: isPresent ? '#DCFCE7' : '#FEE2E2' }]}>
-                          <Text style={[s.statusBadgeTxt, { color: isPresent ? '#16A34A' : '#DC2626' }]}>
-                            {isPresent ? '✓ Present' : '✗ Absent'}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </>
-              )}
+            {/* ── Mark All buttons ── */}
+            <View style={s.markAllRow}>
+              <TouchableOpacity
+                style={s.markAllPresent}
+                onPress={() => markAll('present')}
+                activeOpacity={0.8}
+              >
+                <Text style={s.markAllTxt}>✓ All Present</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.markAllAbsent}
+                onPress={() => markAll('absent')}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.markAllTxt, { color: '#DC2626' }]}>✗ All Absent</Text>
+              </TouchableOpacity>
             </View>
-          )}
 
-          {/* ── Submit button ── */}
-          {selected && students.length > 0 && !submitted && (
+            {/* ── Student Table ── */}
+            <View style={s.studentTable}>
+
+              {/* Table header row */}
+              <View style={s.tableHeaderRow}>
+                {/* Roll No column — narrow fixed width */}
+                <Text style={[s.tableHeaderCell, { width: 52 }]}>Roll No</Text>
+                {/* Name column — takes remaining space */}
+                <Text style={[s.tableHeaderCell, { flex: 1 }]}>Student Name</Text>
+                {/* Status column — fixed width */}
+                <Text style={[s.tableHeaderCell, { width: 90, textAlign: 'center' }]}>Status</Text>
+              </View>
+
+              {/* One row per student */}
+              {students.map((student, i) => {
+                const isPresent = attendance[student.uid] === 'present';
+                // isPresent = true if this student is marked present
+                // false = absent
+
+                return (
+                  <TouchableOpacity
+                    key={student.uid}
+                    // key must be unique — uid is unique per student in Firestore
+                    style={[
+                      s.tableRow,
+                      i % 2 === 0 ? s.tableRowEven : s.tableRowOdd,
+                      // zebra striping — alternate row background colors
+                      // even rows = white, odd rows = very light grey
+                      isPresent ? s.tableRowPresent : s.tableRowAbsent,
+                      // green tint if present, red tint if absent
+                      // this overrides the zebra color when marked
+                    ]}
+                    onPress={() => toggleStudent(student.uid)}
+                    // tap anywhere on the row to toggle present/absent
+                    activeOpacity={0.75}
+                  >
+                    {/* Roll number cell — sequential, placeholder until DB has real roll numbers */}
+                    <View style={[s.rollCell, { width: 52 }]}>
+                      <Text style={s.rollNumber}>{i + 1}</Text>
+                      {/* i + 1 because array index starts at 0 but roll numbers start at 1 */}
+                    </View>
+
+                    {/* Student name cell */}
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.studentNameCell} numberOfLines={1}>
+                        {student.name}
+                      </Text>
+                    </View>
+
+                    {/* Status badge cell */}
+                    <View style={{ width: 90, alignItems: 'center' }}>
+                      <View style={[
+                        s.statusBadge,
+                        { backgroundColor: isPresent ? '#DCFCE7' : '#FEE2E2' }
+                      ]}>
+                        <Text style={[
+                          s.statusBadgeTxt,
+                          { color: isPresent ? '#16A34A' : '#DC2626' }
+                        ]}>
+                          {isPresent ? '✓ Present' : '✗ Absent'}
+                        </Text>
+                      </View>
+                    </View>
+
+                  </TouchableOpacity>
+                );
+              })}
+
+            </View>
+            {/* end studentTable */}
+
+            {/* ── Session Type selector ── */}
             <View style={s.sessionTypeCard}>
               <Text style={s.sessionTypeLabel}>Session Type</Text>
               <View style={s.sessionTypeRow}>
@@ -1262,9 +1429,8 @@ export default function TeacherAttendanceScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          )}
 
-          {selected && students.length > 0 && !submitted && (
+            {/* ── Submit button ── */}
             <TouchableOpacity
               style={[s.submitBtn, submitting && s.submitBtnDisabled]}
               activeOpacity={0.85}
@@ -1279,38 +1445,238 @@ export default function TeacherAttendanceScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-          )}
 
-          {/* ── Submitted confirmation ── */}
-          {submitted && (
-            <View style={s.successCard}>
-              <Text style={s.successIcon}>{isOnline ? '✅' : '💾'}</Text>
-              <Text style={s.successTitle}>
-                {isOnline ? 'Attendance Submitted!' : 'Saved Offline!'}
-              </Text>
-              <Text style={s.successSub}>
-                {isOnline
-                  ? 'Data has been saved to cloud.'
-                  : 'Will sync when internet returns.'}
-              </Text>
-              <TouchableOpacity
-                style={s.newSessionBtn}
-                onPress={() => { setSelected(null); setStudents([]); setAttendance({}); setSubmitted(false); }}
-              >
-                <Text style={s.newSessionTxt}>Take Another Session</Text>
+            {/* pending sync badge at bottom */}
+            {pendingCount > 0 && (
+              <TouchableOpacity style={s.syncPill} onPress={handleManualSync} activeOpacity={0.8}>
+                <Text style={s.syncTxt}>⏳ {pendingCount} pending — Tap to sync</Text>
               </TouchableOpacity>
-            </View>
-          )}
+            )}
 
-          <View style={{ height: 30 }} />
-        </View>
-      </ScrollView>
+            <View style={{ height: 40 }} />
+          </View>
+        </ScrollView>
+      )}
+
     </View>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F4F7FB' },
+
+  // ── Shared ────────────────────────────────────────────────────────────────
+  centered: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12,
+  },
+  centeredFull: {
+    // used for success screen and empty state in marking view
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 32, gap: 12,
+  },
+  loadingTxt: { fontSize: 14, color: '#1565C0' },
+
+  // ── Subject list header ───────────────────────────────────────────────────
+  header: {
+    backgroundColor: '#1565C0',
+    paddingTop: 52, paddingHorizontal: 20, paddingBottom: 20,
+  },
+  headerTitle: { fontSize: 22, fontWeight: '900', color: '#fff', marginBottom: 2 },
+  headerSub:   { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 12 },
+
+  // ── Marking view header ───────────────────────────────────────────────────
+  markingHeader: {
+    backgroundColor: '#1565C0',
+    paddingTop: 52, paddingHorizontal: 16, paddingBottom: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+  },
+  backBtn: {
+    // circular back button
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)',
+  },
+  backBtnTxt: {
+    color: '#fff', fontSize: 26, fontWeight: '300', lineHeight: 30,
+    // ‹ character needs specific lineHeight to center properly
+  },
+  markingHeaderText: { flex: 1 },
+  markingHeaderTitle: { fontSize: 18, fontWeight: '800', color: '#fff' },
+  markingHeaderSub:   { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 2 },
+  netPillSmall: {
+    borderRadius: 16, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  netTxtSmall: { fontSize: 14 },
+
+  // ── Status row (subject list header) ─────────────────────────────────────
+  statusRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  netPill:   { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  netTxt:    { fontSize: 12, fontWeight: '700' },
+  syncPill:  {
+    backgroundColor: '#FEF3C7', borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 4,
+  },
+  syncTxt:   { fontSize: 12, fontWeight: '700', color: '#D97706' },
+  cachePill: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  cacheTxt:  { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
+
+  // ── Body padding ─────────────────────────────────────────────────────────
+  body: { paddingHorizontal: 16, paddingTop: 16 },
+
+  // ── Section label (above subject list) ───────────────────────────────────
+  sectionLabel: {
+    fontSize: 11, fontWeight: '800', color: '#9AA5B1',
+    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4,
+  },
+  sectionSub: {
+    fontSize: 13, color: '#5F6C7B', marginBottom: 16,
+  },
+
+  // ── Subject cards (View 1) ────────────────────────────────────────────────
+  subjectCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#fff', borderRadius: 16, marginBottom: 12,
+    overflow: 'hidden',
+    elevation: 3, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 8,
+  },
+  subjectAccent: {
+    // left colored bar — 5px wide, full height of card
+    width: 5, alignSelf: 'stretch',
+  },
+  subjectCardBody: { flex: 1, paddingVertical: 18, paddingHorizontal: 16 },
+  subjectCardName: { fontSize: 16, fontWeight: '700', color: '#0A1F44' },
+  subjectCardClass:{ fontSize: 13, color: '#5F6C7B', marginTop: 4 },
+  subjectCardArrow:{ fontSize: 28, color: '#9AA5B1', paddingRight: 16 },
+
+  // ── Empty state ───────────────────────────────────────────────────────────
+  emptyState: {
+    alignItems: 'center', paddingVertical: 48,
+  },
+  emptyStateIcon:  { fontSize: 48, marginBottom: 12 },
+  emptyStateTitle: { fontSize: 17, fontWeight: '700', color: '#0A1F44', marginBottom: 6 },
+  emptyStateSub:   { fontSize: 13, color: '#9AA5B1', textAlign: 'center', lineHeight: 20 },
+
+  // ── Summary bar (View 2) ─────────────────────────────────────────────────
+  summaryBar: {
+    backgroundColor: '#fff', borderRadius: 16,
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-around', paddingVertical: 14,
+    marginBottom: 12,
+    elevation: 2, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4,
+  },
+  summaryBarItem:    { alignItems: 'center', flex: 1 },
+  summaryBarVal:     { fontSize: 24, fontWeight: '900' },
+  summaryBarLbl:     { fontSize: 11, color: '#9AA5B1', fontWeight: '600', marginTop: 2 },
+  summaryBarDivider: { width: 1, height: 32, backgroundColor: '#E5E7EB' },
+
+  // ── Mark All row ─────────────────────────────────────────────────────────
+  markAllRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  markAllPresent: {
+    flex: 1, backgroundColor: '#DCFCE7', borderRadius: 10,
+    padding: 11, alignItems: 'center',
+  },
+  markAllAbsent: {
+    flex: 1, backgroundColor: '#FEE2E2', borderRadius: 10,
+    padding: 11, alignItems: 'center',
+  },
+  markAllTxt: { fontSize: 13, fontWeight: '700', color: '#16A34A' },
+
+  // ── Student Table ─────────────────────────────────────────────────────────
+  studentTable: {
+    backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden',
+    marginBottom: 14,
+    elevation: 2, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4,
+  },
+  tableHeaderRow: {
+    // dark blue header row — looks like a formal register
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#1565C0',
+    paddingVertical: 10, paddingHorizontal: 12,
+  },
+  tableHeaderCell: {
+    fontSize: 11, fontWeight: '800', color: '#fff',
+    textTransform: 'uppercase', letterSpacing: 0.5,
+  },
+  tableRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 12, paddingHorizontal: 12,
+    borderBottomWidth: 1, borderBottomColor: '#F4F7FB',
+  },
+  tableRowEven:    { backgroundColor: '#fff' },
+  tableRowOdd:     { backgroundColor: '#FAFBFC' },
+  // when marked, these override the zebra colors
+  tableRowPresent: { backgroundColor: '#F0FDF4' }, // very light green
+  tableRowAbsent:  { backgroundColor: '#FFF5F5' }, // very light red
+  rollCell: {
+    alignItems: 'center', justifyContent: 'center',
+  },
+  rollNumber: {
+    fontSize: 13, fontWeight: '700', color: '#9AA5B1',
+    // grey color because it's a temporary sequential number
+  },
+  studentNameCell: {
+    fontSize: 14, fontWeight: '600', color: '#0A1F44',
+  },
+  statusBadge: {
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+  },
+  statusBadgeTxt: { fontSize: 12, fontWeight: '700' },
+
+  // ── Session type ──────────────────────────────────────────────────────────
+  sessionTypeCard: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 16,
+    marginBottom: 12, elevation: 2,
+  },
+  sessionTypeLabel: { fontSize: 13, fontWeight: '700', color: '#0A1F44', marginBottom: 10 },
+  sessionTypeRow:   { flexDirection: 'row', gap: 10 },
+  sessionTypeBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 6,
+    borderWidth: 1.5, borderColor: '#DCE3EA',
+    borderRadius: 12, paddingVertical: 12, backgroundColor: '#F9FAFB',
+  },
+  sessionTypeBtnActive:          { borderColor: '#1565C0', backgroundColor: '#E3F2FD' },
+  sessionTypeBtnActivePractical: { borderColor: '#7C3AED', backgroundColor: '#F3E8FF' },
+  sessionTypeBtnIcon: { fontSize: 18 },
+  sessionTypeBtnTxt:  { fontSize: 14, fontWeight: '700', color: '#9AA5B1' },
+  sessionTypeBtnTxtActive:          { color: '#1565C0' },
+  sessionTypeBtnTxtActivePractical: { color: '#7C3AED' },
+
+  // ── Submit button ─────────────────────────────────────────────────────────
+  submitBtn: {
+    backgroundColor: '#1565C0', borderRadius: 16, padding: 18,
+    alignItems: 'center', marginBottom: 14,
+    elevation: 5, shadowColor: '#1565C0',
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8,
+  },
+  submitBtnDisabled: { backgroundColor: '#9AA5B1', elevation: 0 },
+  submitBtnTxt: { fontSize: 16, fontWeight: '900', color: '#fff' },
+
+  // ── Success screen ────────────────────────────────────────────────────────
+  successBigIcon:  { fontSize: 64, marginBottom: 16 },
+  successBigTitle: { fontSize: 22, fontWeight: '900', color: '#16A34A', textAlign: 'center' },
+  successBigSub:   { fontSize: 14, color: '#166534', textAlign: 'center', lineHeight: 22 },
+  anotherBtn: {
+    marginTop: 8, backgroundColor: '#1565C0', borderRadius: 14,
+    paddingHorizontal: 24, paddingVertical: 13,
+  },
+  anotherBtnTxt: { fontSize: 15, fontWeight: '700', color: '#fff' },
+
+  // ── Error card ────────────────────────────────────────────────────────────
+  errorCard: {
+    backgroundColor: '#FEE2E2', borderRadius: 12, padding: 14,
+    marginBottom: 14, borderWidth: 1, borderColor: '#DC2626',
+  },
+  errorTxt: { color: '#DC2626', fontSize: 13, fontWeight: '600' },
+// });
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingTxt: { fontSize: 14, color: '#1565C0' },
 
