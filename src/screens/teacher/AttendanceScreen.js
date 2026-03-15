@@ -1676,83 +1676,83 @@ const s = StyleSheet.create({
     marginBottom: 14, borderWidth: 1, borderColor: '#DC2626',
   },
   errorTxt: { color: '#DC2626', fontSize: 13, fontWeight: '600' },
-// });
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingTxt: { fontSize: 14, color: '#1565C0' },
-
-  header: { backgroundColor: '#1565C0', paddingTop: 52, paddingHorizontal: 20, paddingBottom: 20 },
-  headerTitle: { fontSize: 22, fontWeight: '900', color: '#fff', marginBottom: 2 },
-  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 12 },
-  statusRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  netPill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  netTxt: { fontSize: 12, fontWeight: '700' },
-  syncPill:    { backgroundColor: '#FEF3C7', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  syncTxt:     { fontSize: 12, fontWeight: '700', color: '#D97706' },
-  cachePill:   { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  cacheTxt:    { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
-
-  body: { paddingHorizontal: 16, paddingTop: 16 },
-
-  card: { backgroundColor: '#fff', borderRadius: 20, padding: 16, marginBottom: 14, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#0A1F44', marginBottom: 4 },
-  cardSub: { fontSize: 12, color: '#9AA5B1', marginBottom: 12 },
-  emptyTxt: { fontSize: 13, color: '#9AA5B1', textAlign: 'center', paddingVertical: 16 },
-
-  // Assignment options
-  assignOption: { borderWidth: 1.5, borderColor: '#DCE3EA', borderRadius: 12, padding: 12, marginBottom: 8 },
-  assignOptionSelected: { borderColor: '#1565C0', backgroundColor: '#E3F2FD' },
-  assignOptionLeft: { flex: 1 },
-  assignSubject: { fontSize: 14, fontWeight: '700', color: '#0A1F44' },
-  assignSubjectSelected: { color: '#1565C0' },
-  assignClass: { fontSize: 12, color: '#5F6C7B', marginTop: 2 },
-  assignClassSelected: { color: '#1565C0' },
-  checkmark: { fontSize: 18, color: '#1565C0', fontWeight: '900' },
-
-  // Mark all
-  markAllRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  markAllPresent: { flex: 1, backgroundColor: '#DCFCE7', borderRadius: 10, padding: 10, alignItems: 'center' },
-  markAllAbsent: { flex: 1, backgroundColor: '#FEE2E2', borderRadius: 10, padding: 10, alignItems: 'center' },
-  markAllTxt: { fontSize: 13, fontWeight: '700', color: '#16A34A' },
-
-  // Summary
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 4 },
-  presentCount: { fontSize: 14, fontWeight: '700', color: '#16A34A' },
-  absentCount: { fontSize: 14, fontWeight: '700', color: '#DC2626' },
-
-  // Student rows
-  studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, borderRadius: 8 },
-  studentPresent: { backgroundColor: 'transparent' },
-  studentAbsent: { backgroundColor: '#FFF5F5' },
-  studentDivider: { borderTopWidth: 1, borderTopColor: '#F4F7FB' },
-  studentStatusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 12 },
-  studentName: { flex: 1, fontSize: 14, fontWeight: '600', color: '#0A1F44' },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusBadgeTxt: { fontSize: 12, fontWeight: '700' },
-
-  // Submit
-  submitBtn: { backgroundColor: '#1565C0', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 14, elevation: 5, shadowColor: '#1565C0', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
-  submitBtnDisabled: { backgroundColor: '#9AA5B1' },
-  submitBtnTxt: { fontSize: 16, fontWeight: '900', color: '#fff' },
-
-  // Success
-  successCard: { backgroundColor: '#DCFCE7', borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 14, borderWidth: 1.5, borderColor: '#16A34A' },
-  successIcon: { fontSize: 40, marginBottom: 8 },
-  successTitle: { fontSize: 18, fontWeight: '800', color: '#16A34A', marginBottom: 4 },
-  successSub: { fontSize: 13, color: '#166534', textAlign: 'center', marginBottom: 16 },
-  newSessionBtn: { backgroundColor: '#16A34A', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
-  newSessionTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
-
-  errorCard: { backgroundColor: '#FEE2E2', borderRadius: 12, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#DC2626' },
-  errorTxt:  { color: '#DC2626', fontSize: 13, fontWeight: '600' },
-
-  sessionTypeCard:    { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, elevation: 2 },
-  sessionTypeLabel:   { fontSize: 13, fontWeight: '700', color: '#0A1F44', marginBottom: 10 },
-  sessionTypeRow:     { flexDirection: 'row', gap: 10 },
-  sessionTypeBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1.5, borderColor: '#DCE3EA', borderRadius: 12, paddingVertical: 12, backgroundColor: '#F9FAFB' },
-  sessionTypeBtnActive:           { borderColor: '#1565C0', backgroundColor: '#E3F2FD' },
-  sessionTypeBtnActivePractical:  { borderColor: '#7C3AED', backgroundColor: '#F3E8FF' },
-  sessionTypeBtnIcon: { fontSize: 18 },
-  sessionTypeBtnTxt:  { fontSize: 14, fontWeight: '700', color: '#9AA5B1' },
-  sessionTypeBtnTxtActive:          { color: '#1565C0' },
-  sessionTypeBtnTxtActivePractical: { color: '#7C3AED' },
 });
+//   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+//   loadingTxt: { fontSize: 14, color: '#1565C0' },
+
+//   header: { backgroundColor: '#1565C0', paddingTop: 52, paddingHorizontal: 20, paddingBottom: 20 },
+//   headerTitle: { fontSize: 22, fontWeight: '900', color: '#fff', marginBottom: 2 },
+//   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 12 },
+//   statusRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+//   netPill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+//   netTxt: { fontSize: 12, fontWeight: '700' },
+//   syncPill:    { backgroundColor: '#FEF3C7', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+//   syncTxt:     { fontSize: 12, fontWeight: '700', color: '#D97706' },
+//   cachePill:   { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+//   cacheTxt:    { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
+
+//   body: { paddingHorizontal: 16, paddingTop: 16 },
+
+//   card: { backgroundColor: '#fff', borderRadius: 20, padding: 16, marginBottom: 14, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 },
+//   cardTitle: { fontSize: 15, fontWeight: '700', color: '#0A1F44', marginBottom: 4 },
+//   cardSub: { fontSize: 12, color: '#9AA5B1', marginBottom: 12 },
+//   emptyTxt: { fontSize: 13, color: '#9AA5B1', textAlign: 'center', paddingVertical: 16 },
+
+//   // Assignment options
+//   assignOption: { borderWidth: 1.5, borderColor: '#DCE3EA', borderRadius: 12, padding: 12, marginBottom: 8 },
+//   assignOptionSelected: { borderColor: '#1565C0', backgroundColor: '#E3F2FD' },
+//   assignOptionLeft: { flex: 1 },
+//   assignSubject: { fontSize: 14, fontWeight: '700', color: '#0A1F44' },
+//   assignSubjectSelected: { color: '#1565C0' },
+//   assignClass: { fontSize: 12, color: '#5F6C7B', marginTop: 2 },
+//   assignClassSelected: { color: '#1565C0' },
+//   checkmark: { fontSize: 18, color: '#1565C0', fontWeight: '900' },
+
+//   // Mark all
+//   markAllRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+//   markAllPresent: { flex: 1, backgroundColor: '#DCFCE7', borderRadius: 10, padding: 10, alignItems: 'center' },
+//   markAllAbsent: { flex: 1, backgroundColor: '#FEE2E2', borderRadius: 10, padding: 10, alignItems: 'center' },
+//   markAllTxt: { fontSize: 13, fontWeight: '700', color: '#16A34A' },
+
+//   // Summary
+//   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 4 },
+//   presentCount: { fontSize: 14, fontWeight: '700', color: '#16A34A' },
+//   absentCount: { fontSize: 14, fontWeight: '700', color: '#DC2626' },
+
+//   // Student rows
+//   studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, borderRadius: 8 },
+//   studentPresent: { backgroundColor: 'transparent' },
+//   studentAbsent: { backgroundColor: '#FFF5F5' },
+//   studentDivider: { borderTopWidth: 1, borderTopColor: '#F4F7FB' },
+//   studentStatusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 12 },
+//   studentName: { flex: 1, fontSize: 14, fontWeight: '600', color: '#0A1F44' },
+//   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+//   statusBadgeTxt: { fontSize: 12, fontWeight: '700' },
+
+//   // Submit
+//   submitBtn: { backgroundColor: '#1565C0', borderRadius: 16, padding: 18, alignItems: 'center', marginBottom: 14, elevation: 5, shadowColor: '#1565C0', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+//   submitBtnDisabled: { backgroundColor: '#9AA5B1' },
+//   submitBtnTxt: { fontSize: 16, fontWeight: '900', color: '#fff' },
+
+//   // Success
+//   successCard: { backgroundColor: '#DCFCE7', borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 14, borderWidth: 1.5, borderColor: '#16A34A' },
+//   successIcon: { fontSize: 40, marginBottom: 8 },
+//   successTitle: { fontSize: 18, fontWeight: '800', color: '#16A34A', marginBottom: 4 },
+//   successSub: { fontSize: 13, color: '#166534', textAlign: 'center', marginBottom: 16 },
+//   newSessionBtn: { backgroundColor: '#16A34A', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
+//   newSessionTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
+
+//   errorCard: { backgroundColor: '#FEE2E2', borderRadius: 12, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#DC2626' },
+//   errorTxt:  { color: '#DC2626', fontSize: 13, fontWeight: '600' },
+
+//   sessionTypeCard:    { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, elevation: 2 },
+//   sessionTypeLabel:   { fontSize: 13, fontWeight: '700', color: '#0A1F44', marginBottom: 10 },
+//   sessionTypeRow:     { flexDirection: 'row', gap: 10 },
+//   sessionTypeBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1.5, borderColor: '#DCE3EA', borderRadius: 12, paddingVertical: 12, backgroundColor: '#F9FAFB' },
+//   sessionTypeBtnActive:           { borderColor: '#1565C0', backgroundColor: '#E3F2FD' },
+//   sessionTypeBtnActivePractical:  { borderColor: '#7C3AED', backgroundColor: '#F3E8FF' },
+//   sessionTypeBtnIcon: { fontSize: 18 },
+//   sessionTypeBtnTxt:  { fontSize: 14, fontWeight: '700', color: '#9AA5B1' },
+//   sessionTypeBtnTxtActive:          { color: '#1565C0' },
+//   sessionTypeBtnTxtActivePractical: { color: '#7C3AED' },
+// });

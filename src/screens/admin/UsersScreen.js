@@ -28,7 +28,10 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 
-import { db, auth } from '../../services/firebase/config'; // adjust path as needed
+import { db, auth } from '../../services/firebase/config';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { read as xlsxRead, utils as xlsxUtils } from 'xlsx';
 
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -80,10 +83,11 @@ const COLORS = {
 
 // ─── Filter Tabs Config ───────────────────────────────────────────────────────
 const FILTER_TABS = [
-  { key: 'all', label: 'All', icon: '👥' },
+  { key: 'all',     label: 'All',      icon: '👥' },
   { key: 'teacher', label: 'Teachers', icon: '👩‍🏫' },
-  { key: 'student', label: 'Students', icon: '🎓' },
 ];
+// Students removed — teachers only in this tab
+// Students are created inside Classes tab per class
 
 // ─── Role Config ──────────────────────────────────────────────────────────────
 const ROLE_CONFIG = {
@@ -94,14 +98,13 @@ const ROLE_CONFIG = {
     lightColor: COLORS.primaryLight,
     initBg: '#4F46E5',
   },
-  student: {
-    label: 'Student',
-    icon: '🎓',
-    color: COLORS.secondary,
-    lightColor: COLORS.secondaryLight,
-    initBg: '#06B6D4',
-  },
+  // student removed — students created inside Classes tab
 };
+
+// Default password for all teachers created by admin
+// WHY hardcoded: team will implement proper generation later
+// Teacher can reset via Forgot Password
+const DEFAULT_TEACHER_PASSWORD = 'saapt123456';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const getInitials = (name = '') => {
@@ -118,21 +121,207 @@ const formatDate = (timestamp) => {
   } catch { return ''; }
 };
 
-// ─── Add User Modal ───────────────────────────────────────────────────────────
-const AddUserModal = ({ visible, onClose, onSave }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [selectedRole, setSelectedRole] = useState('student');
-  const [showPassword, setShowPassword] = useState(false);
-  const [saving, setSaving] = useState(false);
+// ─── Excel Instructions Modal ─────────────────────────────────────────────────
+// Shows required column names before allowing file upload
+const ExcelInstructionsModal = ({ visible, onClose, onProceed }) => (
+  <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+    <View style={modalStyles.overlay}>
+      <View style={[modalStyles.sheet, { borderRadius: 24, marginHorizontal: 20 }]}>
+        <View style={modalStyles.handle} />
+        <Text style={modalStyles.title}>📊 Excel Upload Instructions</Text>
+        <Text style={[modalStyles.subtitle, { marginBottom: 16 }]}>
+          Make sure your Excel file has these exact column names in row 1:
+        </Text>
 
-  const reset = () => {
-    setName(''); setEmail(''); setPassword(''); setPhone('');
-    setSelectedRole('student'); setShowPassword(false); setSaving(false);
+        {[
+          { col: 'name',  req: true,  desc: 'Full name of teacher' },
+          { col: 'email', req: true,  desc: 'Email address (used for login)' },
+          { col: 'phone', req: false, desc: 'Phone number' },
+        ].map(({ col, req, desc }) => (
+          <View key={col} style={modalStyles.colRow}>
+            <View style={[modalStyles.colBadge, { backgroundColor: req ? COLORS.dangerLight : COLORS.successLight }]}>
+              <Text style={[modalStyles.colBadgeTxt, { color: req ? COLORS.danger : COLORS.success }]}>
+                {req ? 'Required' : 'Optional'}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={modalStyles.colName}>{col}</Text>
+              <Text style={modalStyles.colDesc}>{desc}</Text>
+            </View>
+          </View>
+        ))}
+
+        <View style={modalStyles.infoBox}>
+          <Text style={modalStyles.infoTxt}>
+            ⚠️ Column names are case-sensitive. Password auto-set to saapt123456 for all teachers.
+          </Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+          <TouchableOpacity
+            style={[modalStyles.saveBtn, { flex: 1, backgroundColor: COLORS.border }]}
+            onPress={onClose} activeOpacity={0.8}
+          >
+            <Text style={[modalStyles.saveBtnText, { color: COLORS.text }]}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[modalStyles.saveBtn, { flex: 1, backgroundColor: COLORS.primary }]}
+            onPress={onProceed} activeOpacity={0.85}
+          >
+            <Text style={modalStyles.saveBtnText}>Pick File  →</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ height: 24 }} />
+      </View>
+    </View>
+  </Modal>
+);
+
+// ─── Excel Preview Screen ─────────────────────────────────────────────────────
+// Shows parsed teachers, allows inline editing, then commits to Firestore
+const ExcelPreviewScreen = ({ teachers: initialTeachers, onBack, onCommit, committing }) => {
+  const [teachers, setTeachers] = useState(
+    initialTeachers.map((t, i) => ({ ...t, _key: String(i) }))
+  );
+  const [editingKey, setEditingKey] = useState(null);
+  const [editVals,   setEditVals]   = useState({});
+
+  const startEdit = (teacher) => {
+    setEditingKey(teacher._key);
+    setEditVals({ ...teacher });
   };
 
+  const saveEdit = () => {
+    setTeachers(prev =>
+      prev.map(t => t._key === editingKey ? { ...editVals, _key: editingKey } : t)
+    );
+    setEditingKey(null);
+  };
+
+  const removeTeacher = (key) => {
+    Alert.alert('Remove', 'Remove this teacher from the list?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive',
+        onPress: () => setTeachers(prev => prev.filter(t => t._key !== key)) },
+    ]);
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
+      {/* Header */}
+      <View style={styles.previewHeader}>
+        <TouchableOpacity style={styles.previewBackBtn} onPress={onBack} activeOpacity={0.8}>
+          <Text style={styles.previewBackTxt}>‹</Text>
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.previewTitle}>Preview Teachers</Text>
+          <Text style={styles.previewSub}>{teachers.length} teachers — review before committing</Text>
+        </View>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={{ padding: 16 }}>
+
+          <View style={modalStyles.infoBox}>
+            <Text style={modalStyles.infoTxt}>
+              📝 Tap ✏️ to edit any teacher's info. Tap 🗑️ to remove. Then tap Commit.
+            </Text>
+          </View>
+
+          {teachers.map((teacher) => (
+            <View key={teacher._key} style={styles.previewCard}>
+              {editingKey === teacher._key ? (
+                // ── Inline edit form ────────────────────────────────────────
+                <View>
+                  <Text style={styles.previewEditTitle}>Editing teacher</Text>
+                  {[
+                    { key: 'name',  label: 'Name',  keyboard: 'default' },
+                    { key: 'email', label: 'Email', keyboard: 'email-address' },
+                    { key: 'phone', label: 'Phone', keyboard: 'phone-pad' },
+                  ].map(({ key, label, keyboard }) => (
+                    <View key={key} style={styles.previewEditRow}>
+                      <Text style={styles.previewEditLabel}>{label}</Text>
+                      <TextInput
+                        style={styles.previewEditInput}
+                        value={editVals[key] ?? ''}
+                        onChangeText={v => setEditVals(prev => ({ ...prev, [key]: v }))}
+                        keyboardType={keyboard}
+                        autoCapitalize={keyboard === 'email-address' ? 'none' : 'words'}
+                        placeholderTextColor={COLORS.textLight}
+                      />
+                    </View>
+                  ))}
+                  <TouchableOpacity
+                    style={[modalStyles.saveBtn, { backgroundColor: COLORS.success }]}
+                    onPress={saveEdit} activeOpacity={0.85}
+                  >
+                    <Text style={modalStyles.saveBtnText}>✓ Save Changes</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                // ── Read-only row ──────────────────────────────────────────
+                <View style={styles.previewRow}>
+                  <View style={[styles.previewAvatar, { backgroundColor: COLORS.primary }]}>
+                    <Text style={styles.previewAvatarTxt}>{getInitials(teacher.name || '?')}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.previewName}>{teacher.name || '—'}</Text>
+                    <Text style={styles.previewEmail}>{teacher.email || '—'}</Text>
+                    {!!teacher.phone && (
+                      <Text style={styles.previewMeta}>📞 {teacher.phone}</Text>
+                    )}
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity
+                      style={[styles.previewAction, { backgroundColor: COLORS.primaryLight }]}
+                      onPress={() => startEdit(teacher)} activeOpacity={0.7}
+                    >
+                      <Text>✏️</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.previewAction, { backgroundColor: COLORS.dangerLight }]}
+                      onPress={() => removeTeacher(teacher._key)} activeOpacity={0.7}
+                    >
+                      <Text>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+          ))}
+
+          {/* Commit button */}
+          <TouchableOpacity
+            style={[modalStyles.saveBtn, { backgroundColor: COLORS.success }, committing && modalStyles.saveBtnDisabled]}
+            onPress={() => onCommit(teachers)}
+            disabled={committing || teachers.length === 0}
+            activeOpacity={0.85}
+          >
+            {committing
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={modalStyles.saveBtnText}>
+                  ✅ Commit {teachers.length} Teacher{teachers.length !== 1 ? 's' : ''} to Database
+                </Text>
+            }
+          </TouchableOpacity>
+
+          <View style={{ height: 40 }} />
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+// ─── Add Teacher Modal (one by one) ──────────────────────────────────────────
+const AddUserModal = ({ visible, onClose, onSave }) => {
+  const [name,    setName]    = useState('');
+  const [email,   setEmail]   = useState('');
+  const [phone,   setPhone]   = useState('');
+  const [saving,  setSaving]  = useState(false);
+
+  const reset = () => { setName(''); setEmail(''); setPhone(''); setSaving(false); };
   const handleClose = () => { reset(); onClose(); };
 
   const handleSave = async () => {
@@ -142,168 +331,108 @@ const AddUserModal = ({ visible, onClose, onSave }) => {
     if (!email.trim() || !email.includes('@')) {
       Alert.alert('Required', 'Please enter a valid email address.'); return;
     }
-    if (password.length < 6) {
-      Alert.alert('Required', 'Password must be at least 6 characters.'); return;
-    }
     setSaving(true);
-    await onSave({ name: name.trim(), email: email.trim().toLowerCase(), password, phone: phone.trim(), role: selectedRole });
+    await onSave({
+      name:  name.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone.trim(),
+      role:  'teacher',
+      // role always teacher — students handled in Classes tab
+    });
     setSaving(false);
     reset();
   };
-
-  const conf = ROLE_CONFIG[selectedRole];
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <View style={modalStyles.overlay}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={modalStyles.kvWrapper}>
           <View style={modalStyles.sheet}>
-
-            {/* Drag Handle */}
             <View style={modalStyles.handle} />
 
-            {/* Header */}
             <View style={modalStyles.header}>
               <View>
-                <Text style={modalStyles.title}>Add New User</Text>
-                <Text style={modalStyles.subtitle}>Fill in the details below</Text>
+                <Text style={modalStyles.title}>Add Teacher</Text>
+                <Text style={modalStyles.subtitle}>Password auto-set to saapt123456</Text>
               </View>
               <TouchableOpacity style={modalStyles.closeBtn} onPress={handleClose}>
                 <Text style={modalStyles.closeBtnText}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 8 }}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-              {/* ── Role Selector ── */}
-              <Text style={modalStyles.sectionLabel}>Select Role</Text>
-              <View style={modalStyles.roleRow}>
-                {['teacher', 'student'].map((role) => {
-                  const rc = ROLE_CONFIG[role];
-                  const isActive = selectedRole === role;
-                  return (
-                    <TouchableOpacity
-                      key={role}
-                      style={[modalStyles.roleCard, isActive && { borderColor: rc.color, backgroundColor: rc.lightColor }]}
-                      onPress={() => setSelectedRole(role)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={modalStyles.roleCardIcon}>{rc.icon}</Text>
-                      <Text style={[modalStyles.roleCardLabel, isActive && { color: rc.color }]}>{rc.label}</Text>
-                      {isActive && (
-                        <View style={[modalStyles.roleCheck, { backgroundColor: rc.color }]}>
-                          <Text style={modalStyles.roleCheckTick}>✓</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* ── Full Name ── */}
+              {/* Name */}
               <View style={modalStyles.formGroup}>
                 <Text style={modalStyles.label}>Full Name <Text style={modalStyles.required}>*</Text></Text>
                 <View style={modalStyles.inputRow}>
                   <Text style={modalStyles.inputIcon}>👤</Text>
-                  <TextInput
-                    style={modalStyles.input}
-                    placeholder="e.g. John Smith"
-                    placeholderTextColor={COLORS.textLight}
-                    value={name}
-                    onChangeText={setName}
-                    autoCapitalize="words"
-                  />
+                  <TextInput style={modalStyles.input} placeholder="e.g. John Smith"
+                    placeholderTextColor={COLORS.textLight} value={name}
+                    onChangeText={setName} autoCapitalize="words" />
                 </View>
               </View>
 
-              {/* ── Email ── */}
+              {/* Email */}
               <View style={modalStyles.formGroup}>
                 <Text style={modalStyles.label}>Email Address <Text style={modalStyles.required}>*</Text></Text>
                 <View style={modalStyles.inputRow}>
                   <Text style={modalStyles.inputIcon}>📧</Text>
-                  <TextInput
-                    style={modalStyles.input}
-                    placeholder="e.g. john@school.com"
-                    placeholderTextColor={COLORS.textLight}
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    autoCorrect={false}
-                  />
+                  <TextInput style={modalStyles.input} placeholder="e.g. teacher@school.com"
+                    placeholderTextColor={COLORS.textLight} value={email}
+                    onChangeText={setEmail} keyboardType="email-address"
+                    autoCapitalize="none" autoCorrect={false} />
                 </View>
               </View>
 
-              {/* ── Password ── */}
+              {/* Phone */}
               <View style={modalStyles.formGroup}>
-                <Text style={modalStyles.label}>Password <Text style={modalStyles.required}>*</Text></Text>
-                <View style={modalStyles.inputRow}>
-                  <Text style={modalStyles.inputIcon}>🔒</Text>
-                  <TextInput
-                    style={modalStyles.input}
-                    placeholder="Min. 6 characters"
-                    placeholderTextColor={COLORS.textLight}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity onPress={() => setShowPassword((p) => !p)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={modalStyles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* ── Phone ── */}
-              <View style={modalStyles.formGroup}>
-                <Text style={modalStyles.label}>Phone Number <Text style={modalStyles.optional}>(optional)</Text></Text>
+                <Text style={modalStyles.label}>
+                  Phone Number <Text style={modalStyles.optional}>(optional)</Text>
+                </Text>
                 <View style={modalStyles.inputRow}>
                   <Text style={modalStyles.inputIcon}>📞</Text>
-                  <TextInput
-                    style={modalStyles.input}
-                    placeholder="e.g. +91 9876543210"
-                    placeholderTextColor={COLORS.textLight}
-                    value={phone}
-                    onChangeText={setPhone}
-                    keyboardType="phone-pad"
-                  />
+                  <TextInput style={modalStyles.input} placeholder="+91 9876543210"
+                    placeholderTextColor={COLORS.textLight} value={phone}
+                    onChangeText={setPhone} keyboardType="phone-pad" />
                 </View>
               </View>
 
-              {/* ── Live Preview Card ── */}
+              {/* Password note */}
+              <View style={modalStyles.infoBox}>
+                <Text style={modalStyles.infoTxt}>
+                  🔒 Password will be set to <Text style={{ fontWeight: '800' }}>saapt123456</Text> automatically.
+                  Teacher can reset it via Forgot Password.
+                </Text>
+              </View>
+
+              {/* Preview */}
               {name.trim() !== '' && (
-                <View style={[modalStyles.previewCard, { borderColor: conf.color + '40' }]}>
-                  <View style={[modalStyles.previewAvatar, { backgroundColor: conf.initBg }]}>
+                <View style={[modalStyles.previewCard, { borderColor: COLORS.primary + '40' }]}>
+                  <View style={[modalStyles.previewAvatar, { backgroundColor: COLORS.primary }]}>
                     <Text style={modalStyles.previewInitials}>{getInitials(name)}</Text>
                   </View>
                   <View style={modalStyles.previewInfo}>
                     <Text style={modalStyles.previewName}>{name}</Text>
                     <Text style={modalStyles.previewEmail} numberOfLines={1}>{email || 'No email yet'}</Text>
-                    <View style={[modalStyles.previewBadge, { backgroundColor: conf.lightColor }]}>
-                      <Text style={[modalStyles.previewBadgeText, { color: conf.color }]}>
-                        {conf.icon}  {conf.label}
+                    <View style={[modalStyles.previewBadge, { backgroundColor: COLORS.primaryLight }]}>
+                      <Text style={[modalStyles.previewBadgeText, { color: COLORS.primary }]}>
+                        👩‍🏫  Teacher
                       </Text>
                     </View>
-                  </View>
-                  <View style={modalStyles.previewCheckCircle}>
-                    <Text style={modalStyles.previewCheckText}>👁️</Text>
                   </View>
                 </View>
               )}
 
-              {/* ── Save Button ── */}
               <TouchableOpacity
                 style={[modalStyles.saveBtn, saving && modalStyles.saveBtnDisabled]}
-                onPress={handleSave}
-                disabled={saving}
-                activeOpacity={0.85}
+                onPress={handleSave} disabled={saving} activeOpacity={0.85}
               >
                 {saving
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={modalStyles.saveBtnText}>✓  Add {conf.label}</Text>
+                  : <Text style={modalStyles.saveBtnText}>✓  Add Teacher</Text>
                 }
               </TouchableOpacity>
-
               <View style={{ height: 32 }} />
             </ScrollView>
           </View>
@@ -315,7 +444,16 @@ const AddUserModal = ({ visible, onClose, onSave }) => {
 
 // ─── User Card ────────────────────────────────────────────────────────────────
 const UserCard = ({ user, onDelete, onEdit }) => {
-  const role = ROLE_CONFIG[user.role] || ROLE_CONFIG.student;
+  const role = ROLE_CONFIG[user.role] || {
+    // Fallback for any role not in ROLE_CONFIG (e.g. existing students in DB)
+    // WHY: database may still have users with role:'student' from before
+    // We don't crash — just show a neutral grey style
+    label:      user.role ?? 'User',
+    icon:       '👤',
+    color:      COLORS.textSecondary,
+    lightColor: COLORS.inputBg,
+    initBg:     '#9CA3AF',
+  };
   const initials = getInitials(user.name);
 
   const handleDelete = () => {
@@ -389,7 +527,11 @@ const UsersScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
+  const [modalVisible,      setModalVisible]      = useState(false);
+  const [excelInstructions, setExcelInstructions] = useState(false);
+  const [excelTeachers,     setExcelTeachers]     = useState([]);
+  const [showPreview,       setShowPreview]       = useState(false);
+  const [committing,        setCommitting]        = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -418,43 +560,144 @@ const UsersScreen = ({ navigation }) => {
     setFilteredUsers(result);
   }, [users, selectedFilter, searchQuery]);
 
-  const handleAddUser = async ({ name, email, password, phone, role }) => {
-  try {
-    // 1️⃣ Use SECONDARY auth instance — admin stays logged in
-    const secondaryAuth = getSecondaryAuth();
-    const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-    const uid = credential.user.uid;
+  const handleAddUser = async ({ name, email, phone, role }) => {
+    try {
+      const secondaryAuth = getSecondaryAuth();
+      const credential = await createUserWithEmailAndPassword(
+        secondaryAuth,
+        email,
+        DEFAULT_TEACHER_PASSWORD
+        // WHY auto-password: admin doesn't set passwords manually anymore
+        // Teacher resets via Forgot Password on first login
+      );
+      const uid = credential.user.uid;
+      await secondaryAuth.signOut();
 
-    // 2️⃣ Sign out from secondary app immediately — we don't need it anymore
-    await secondaryAuth.signOut();
+      const newUser = {
+        name,
+        full_name: name,
+        // WHY both: some screens read 'name', others read 'full_name'
+        email,
+        phone,
+        role: 'teacher',
+        // always teacher — students handled in Classes tab
+        uid,
+        createdAt: serverTimestamp(),
+      };
+      await setDoc(doc(db, 'users', uid), newUser);
 
-    // 3️⃣ Write to Firestore using ADMIN's db instance (admin is still logged in)
-    const newUser = {
-      name,
-      email,
-      phone,
-      role,
-      uid,
-      createdAt: serverTimestamp(),
-    };
-    await setDoc(doc(db, 'users', uid), newUser);
+      setUsers(prev => [{ id: uid, ...newUser, createdAt: new Date() }, ...prev]);
+      setModalVisible(false);
+      Alert.alert('✅ Added', `${name} has been added as a teacher.`);
 
-    // 4️⃣ Update local state
-    setUsers((prev) => [{ id: uid, ...newUser, createdAt: new Date() }, ...prev]);
-    setModalVisible(false);
-    Alert.alert('Success! 🎉', `${name} has been added as a ${role}.`);
+    } catch (error) {
+      const msg =
+        error.code === 'auth/email-already-in-use' ? 'This email is already registered.' :
+        error.code === 'auth/invalid-email'         ? 'Please enter a valid email address.' :
+        `Failed to add teacher: ${error.message}`;
+      Alert.alert('Error', msg);
+    }
+  };
 
-  } catch (error) {
-    console.log('Firebase error adding user:', error);
-    const msg =
-      error.code === 'auth/email-already-in-use' ? 'This email is already registered.' :
-      error.code === 'auth/invalid-email'         ? 'Please enter a valid email address.' :
-      error.code === 'auth/weak-password'          ? 'Password must be at least 6 characters.' :
-      error.code === 'permission-denied'           ? 'Firestore rules are blocking this. Check Firebase Console.' :
-      `Failed to add user. Error: ${error.message}`;
-    Alert.alert('Error', msg);
-  }
-};
+  // ── Pick and parse Excel file ──────────────────────────────────────────────
+  const handleExcelPick = async () => {
+    setExcelInstructions(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const fileUri = result.assets[0].uri;
+
+      // Read as base64 using legacy import
+      const fileContent = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: 'base64',
+      });
+
+      // Parse with SheetJS
+      const workbook = xlsxRead(fileContent, { type: 'base64' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = xlsxUtils.sheet_to_json(firstSheet);
+
+      if (rows.length === 0) {
+        Alert.alert('Empty File', 'No data found in the Excel file.');
+        return;
+      }
+
+      const parsed = rows.map(row => ({
+        name:  String(row['name']  ?? row['Name']  ?? '').trim(),
+        email: String(row['email'] ?? row['Email'] ?? '').trim().toLowerCase(),
+        phone: String(row['phone'] ?? row['Phone'] ?? '').trim(),
+      })).filter(t => t.name && t.email);
+      // Filter out rows missing name or email
+
+      if (parsed.length === 0) {
+        Alert.alert('No Valid Teachers',
+          'No rows found with both name and email. Check column names.');
+        return;
+      }
+
+      setExcelTeachers(parsed);
+      setShowPreview(true);
+
+    } catch(e) {
+      Alert.alert('Error', 'Failed to read Excel file. Make sure it is a valid .xlsx file.');
+      console.error('Excel parse error:', e);
+    }
+  };
+
+  // ── Commit Excel teachers to Firestore ─────────────────────────────────────
+  const handleExcelCommit = async (teachers) => {
+    setCommitting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const teacher of teachers) {
+      try {
+        const secondaryAuth = getSecondaryAuth();
+        const credential = await createUserWithEmailAndPassword(
+          secondaryAuth, teacher.email, DEFAULT_TEACHER_PASSWORD
+        );
+        const uid = credential.user.uid;
+        await secondaryAuth.signOut();
+
+        await setDoc(doc(db, 'users', uid), {
+          name:      teacher.name,
+          full_name: teacher.name,
+          email:     teacher.email,
+          phone:     teacher.phone || '',
+          role:      'teacher',
+          uid,
+          createdAt: serverTimestamp(),
+        });
+
+        setUsers(prev => [{
+          id: uid, name: teacher.name, full_name: teacher.name,
+          email: teacher.email, phone: teacher.phone || '',
+          role: 'teacher', uid, createdAt: new Date(),
+        }, ...prev]);
+
+        successCount++;
+      } catch(e) {
+        failCount++;
+        console.error(`Failed to create ${teacher.email}:`, e.message);
+      }
+    }
+
+    setCommitting(false);
+    setShowPreview(false);
+    Alert.alert(
+      '✅ Commit Complete',
+      `${successCount} teacher${successCount !== 1 ? 's' : ''} added.` +
+      (failCount > 0 ? `\n${failCount} failed (email already in use or invalid).` : '')
+    );
+  };
 
   const handleDelete = async (userId) => {
     try {
@@ -469,6 +712,18 @@ const UsersScreen = ({ navigation }) => {
   const renderUser = ({ item }) => <UserCard user={item} onDelete={handleDelete} onEdit={handleEdit} />;
   const keyExtractor = (item) => item.id;
 
+  // Show Excel preview screen when active
+  if (showPreview) {
+    return (
+      <ExcelPreviewScreen
+        teachers={excelTeachers}
+        onBack={() => setShowPreview(false)}
+        onCommit={handleExcelCommit}
+        committing={committing}
+      />
+    );
+  }
+
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
@@ -477,12 +732,26 @@ const UsersScreen = ({ navigation }) => {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.headerTitle}>User Management</Text>
-            <Text style={styles.headerSubtitle}>Manage teachers & students</Text>
+            <Text style={styles.headerTitle}>Teachers</Text>
+            <Text style={styles.headerSubtitle}>Manage teacher accounts</Text>
           </View>
-          <TouchableOpacity style={styles.headerAddBtn} onPress={() => setModalVisible(true)} activeOpacity={0.8}>
-            <Text style={styles.headerAddBtnText}>+ Add</Text>
-          </TouchableOpacity>
+          {/* Two buttons: Add one + Excel upload */}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={styles.headerAddBtn}
+              onPress={() => setExcelInstructions(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.headerAddBtnText}>📊 Excel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerAddBtn}
+              onPress={() => setModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.headerAddBtnText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -564,11 +833,18 @@ const UsersScreen = ({ navigation }) => {
         <Text style={styles.fabIcon}>＋</Text>
       </TouchableOpacity>
 
-      {/* Add User Modal */}
+      {/* Add Teacher Modal */}
       <AddUserModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onSave={handleAddUser}
+      />
+
+      {/* Excel Instructions Modal */}
+      <ExcelInstructionsModal
+        visible={excelInstructions}
+        onClose={() => setExcelInstructions(false)}
+        onProceed={handleExcelPick}
       />
     </KeyboardAvoidingView>
   );
@@ -689,6 +965,18 @@ const modalStyles = StyleSheet.create({
   },
   saveBtnDisabled: { opacity: 0.65 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+
+  // Excel instruction styles
+  colRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+                marginBottom: 10, paddingVertical: 4 },
+  colBadge:   { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
+                minWidth: 64, alignItems: 'center' },
+  colBadgeTxt:{ fontSize: 10, fontWeight: '800' },
+  colName:    { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  colDesc:    { fontSize: 11, color: COLORS.textSecondary, marginTop: 1 },
+  infoBox:    { backgroundColor: COLORS.warningLight, borderRadius: 12, padding: 12,
+                borderWidth: 1, borderColor: COLORS.warning, marginBottom: 12 },
+  infoTxt:    { fontSize: 12, color: COLORS.text, lineHeight: 18 },
 });
 
 // ─── Screen Styles ────────────────────────────────────────────────────────────
@@ -795,6 +1083,34 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 52, marginBottom: 16 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
   emptySubtitle: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
+
+  // Preview screen styles
+  previewHeader:  { backgroundColor: COLORS.primary, paddingTop: 52, paddingHorizontal: 16,
+                    paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  previewBackBtn: { width: 40, height: 40, borderRadius: 20,
+                    backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center',
+                    justifyContent: 'center', borderWidth: 1.5,
+                    borderColor: 'rgba(255,255,255,0.35)' },
+  previewBackTxt: { color: '#fff', fontSize: 26, fontWeight: '300', lineHeight: 30 },
+  previewTitle:   { fontSize: 20, fontWeight: '800', color: '#fff' },
+  previewSub:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  previewCard:    { backgroundColor: COLORS.card, borderRadius: 14, padding: 14,
+                    marginBottom: 10, elevation: 2 },
+  previewRow:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  previewAvatar:  { width: 40, height: 40, borderRadius: 12,
+                    alignItems: 'center', justifyContent: 'center' },
+  previewAvatarTxt:{ color: '#fff', fontWeight: '800', fontSize: 14 },
+  previewName:    { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  previewEmail:   { fontSize: 12, color: COLORS.textSecondary, marginTop: 1 },
+  previewMeta:    { fontSize: 11, color: COLORS.primary, marginTop: 1 },
+  previewEditTitle:{ fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
+  previewEditRow: { marginBottom: 10 },
+  previewEditLabel:{ fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4 },
+  previewEditInput:{ backgroundColor: COLORS.inputBg, borderRadius: 10, paddingHorizontal: 12,
+                     paddingVertical: 10, fontSize: 14, color: COLORS.text,
+                     borderWidth: 1.5, borderColor: COLORS.border },
+  previewAction:  { width: 34, height: 34, borderRadius: 10,
+                    alignItems: 'center', justifyContent: 'center' },
 
   fab: {
     position: 'absolute', bottom: 28, right: 22,
