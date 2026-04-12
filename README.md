@@ -252,7 +252,7 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 ## 👨‍💻 Author
 
-Made with ❤️ as a Diploma CSE Final Year Project.
+Divesh koli/Siddhesh Shinde
 
 ---
 
