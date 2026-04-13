@@ -30,6 +30,55 @@ Teachers mark attendance subject-wise with a single tap. Students instantly see 
 
 ---
 
+## 📸 Screenshots
+
+> 💡 **How to add your screenshots:**
+> 1. Create a folder called `assets/screenshots/` in your project root
+> 2. Add your image files there (e.g. `login.png`, `admin.png`, etc.)
+> 3. The images will automatically show up here on GitHub
+
+<br/>
+
+<div align="center">
+
+### 🔐 Login Screen
+<!-- PLACE YOUR IMAGE HERE: save as assets/screenshots/login.png -->
+<img src="assets/screenshots/login.png" width="250" alt="Login Screen"/>
+
+<br/><br/>
+
+### 👑 Admin Dashboard
+<!-- PLACE YOUR IMAGE HERE: save as assets/screenshots/admin.png -->
+<img src="assets/screenshots/admin.png" width="250" alt="Admin Dashboard"/>
+
+<br/><br/>
+
+### 👩‍🏫 Teacher View
+<!-- PLACE YOUR IMAGE HERE: save as assets/screenshots/teacher.png -->
+<img src="assets/screenshots/teacher.png" width="250" alt="Teacher Screen"/>
+
+<br/><br/>
+
+### 🎓 Student Dashboard
+<!-- PLACE YOUR IMAGE HERE: save as assets/screenshots/student.png -->
+<img src="assets/screenshots/student.png" width="250" alt="Student Dashboard"/>
+
+<br/><br/>
+
+### 📧 Email Report
+<!-- PLACE YOUR IMAGE HERE: save as assets/screenshots/email.png -->
+<img src="assets/screenshots/email.png" width="250" alt="Email Report"/>
+
+<br/><br/>
+
+### 📄 Defaulter PDF Export
+<!-- PLACE YOUR IMAGE HERE: save as assets/screenshots/defaulter_pdf.png -->
+<img src="assets/screenshots/defaulter_pdf.png" width="250" alt="Defaulter PDF"/>
+
+</div>
+
+---
+
 ## ✨ Features
 
 ### 👑 Admin
@@ -215,16 +264,6 @@ A student is marked as a **defaulter** if their attendance in any subject falls 
 
 ---
 
-## 📸 Screens
-
-| Role | Screens |
-|---|---|
-| Admin | Dashboard, Users, Classes, Reports, Profile |
-| Teacher | Home, My Classes, Take Attendance, Reports, Profile |
-| Student | Home Dashboard, Full Report, Profile |
-
----
-
 ## 🗺 Roadmap
 
 - [ ] Push notifications for low attendance alerts
@@ -250,9 +289,34 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 ---
 
-## 👨‍💻 Author
+## 👨‍💻 Authors
 
-Divesh koli/Siddhesh Shinde
+<table>
+  <tr>
+    <td align="center">
+      <b>Divesh Koli</b><br/>
+      <br/>
+      <a href="mailto:kolidivesh05@gmail.com">
+        <img src="https://img.shields.io/badge/Gmail-kolidivesh05@gmail.com-D14836?style=flat-square&logo=gmail&logoColor=white"/>
+      </a>
+      <br/>
+      <a href="https://instagram.com/diveshdkoli" target="_blank">
+        <img src="https://img.shields.io/badge/Instagram-@diveshdkoli-E4405F?style=flat-square&logo=instagram&logoColor=white"/>
+      </a>
+    </td>
+    <td align="center">
+      <b>Siddhesh Shinde</b><br/>
+      <br/>
+      <a href="mailto:siddheshshinde42556@gmail.com">
+        <img src="https://img.shields.io/badge/Gmail-siddheshshinde42556@gmail.com-D14836?style=flat-square&logo=gmail&logoColor=white"/>
+      </a>
+      <br/>
+      <a href="https://instagram.com/__siddhesh._.07" target="_blank">
+        <img src="https://img.shields.io/badge/Instagram-@__siddhesh._.07-E4405F?style=flat-square&logo=instagram&logoColor=white"/>
+      </a>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -263,5 +327,5 @@ This project is licensed under the [MIT License](LICENSE).
 ---
 
 <div align="center">
-  <sub>Built with React Native + Firebase | SAAPT v1.0.0</sub>
+  <sub>Built with ❤️ using React Native + Firebase | SAAPT v1.0.0</sub>
 </div>
