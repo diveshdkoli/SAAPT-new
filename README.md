@@ -170,30 +170,6 @@ src/
     └── index.js               # Colors, Typography, Spacing, Radius
 ```
 
----
-
-## 🗄 Firestore Data Model
-
-```
-users/{uid}
-  name, email, phone, role, classId, className, rollNumber, createdAt
-
-classes/{id}
-  name, students: [uid, ...], createdAt
-
-subjects/{id}
-  name, teacherId, teacherName, createdAt
-
-class_subjects/{id}
-  classId, className, subjectId, subjectName, teacherId, teacherName, createdAt
-
-attendance/{autoId}
-  classId, className, subjectId, subjectName, teacherId, date, savedAt
-  records: [{ studentId, name, status }]
-```
-
----
-
 ## 🚀 Getting Started
 
 ### Prerequisites
