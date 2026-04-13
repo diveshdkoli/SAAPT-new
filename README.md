@@ -55,13 +55,13 @@ Teachers mark attendance subject-wise with a single tap. Students instantly see 
 
 ### 👩‍🏫 Teacher View
 <!-- PLACE YOUR IMAGE HERE: save as assets/screenshots/teacher.png -->
-<img src="assets/screenshots/teacher.png" width="250" alt="Teacher Screen"/>
+<img src="assets/screenshots/Teacher.png" width="250" alt="Teacher Screen"/>
 
 <br/><br/>
 
 ### 🎓 Student Dashboard
 <!-- PLACE YOUR IMAGE HERE: save as assets/screenshots/student.png -->
-<img src="assets/screenshots/student.png" width="250" alt="Student Dashboard"/>
+<img src="assets/screenshots/Student.png" width="250" alt="Student Dashboard"/>
 
 <br/><br/>
 
