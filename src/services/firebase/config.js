@@ -1,4 +1,4 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,19 +12,28 @@ const firebaseConfig = {
   appId: "1:1084667160499:web:9f45f6cf28de68c4090dc6"
 };
 
-// Initialize Firebase only if not already initialized
-const app = getApps().length === 0
-  ? initializeApp(firebaseConfig)
-  : getApp();
+// ── Primary Firebase app ──────────────────────────────────────────────────────
+// IMPORTANT: Always look for the '[DEFAULT]' app by name.
+// getApps().length === 0 is WRONG — secondary apps (SecondaryApp, SecondaryAppClasses)
+// can be initialized first, making length > 0 even when the primary app is missing.
+// This caused auth to initialize WITHOUT AsyncStorage persistence, losing session on restart.
+const primaryApp = getApps().find(a => a.name === '[DEFAULT]')
+  ?? initializeApp(firebaseConfig);
 
-// Initialize Auth with AsyncStorage persistence (IMPORTANT for React Native)
-export const auth = getApps().length === 0
-  ? initializeAuth(app, {
+// ── Auth with AsyncStorage persistence ───────────────────────────────────────
+// initializeAuth throws if called twice on the same app, so check first.
+export const auth = (() => {
+  try {
+    return initializeAuth(primaryApp, {
       persistence: getReactNativePersistence(AsyncStorage),
-    })
-  : getAuth(app);
+    });
+  } catch {
+    // Already initialized — return the existing instance
+    return getAuth(primaryApp);
+  }
+})();
 
-// Initialize Firestore
-export const db = getFirestore(app);
+// ── Firestore ─────────────────────────────────────────────────────────────────
+export const db = getFirestore(primaryApp);
 
-export default app;
+export default primaryApp;

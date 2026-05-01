@@ -4,29 +4,29 @@ import {
   StatusBar, ScrollView, KeyboardAvoidingView,
   Platform, Dimensions, Alert,
 } from 'react-native';
-import { Colors, Typography, Spacing, Radius } from '../../theme';
-import { registerUser } from '../../services/firebase/auth';
+import { Colors } from '../../theme';
+import { registerAdmin } from '../../services/firebase/auth';
 
 const { height } = Dimensions.get('window');
 
 /**
- * SignupScreen — Teacher / Student Registration ONLY
+ * AdminSignupScreen
  *
- * ✅ Role is limited to 'teacher' or 'student' — no admin option here.
- * ✅ Admin registration is a separate screen (AdminSignupScreen).
- * ✅ Calls registerUser() which sets role in Firestore.
+ * ✅ ONLY creates users with role = "admin"
+ * ✅ Accessible from LoginScreen → "Admin Signup" link
+ * ✅ After signup, navigates back to Login
+ *
+ * 🔒 In production: protect this route with an invite code or
+ *    superadmin approval so anyone can't freely create admins.
  */
-const SignupScreen = ({ navigation, route }) => {
-  const initialRole = route?.params?.role === 'student' ? 'student' : 'teacher';
-  const [role, setRole] = useState(initialRole);
-
+const AdminSignupScreen = ({ navigation }) => {
   const [form, setForm] = useState({
     name: '',
     email: '',
     phone: '',
-    username: '',
     password: '',
     confirmPassword: '',
+    inviteCode: '',   // optional extra security layer
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -38,7 +38,6 @@ const SignupScreen = ({ navigation, route }) => {
     form.name.trim() &&
     form.email.trim() &&
     form.phone.trim() &&
-    form.username.trim() &&
     form.password.trim().length >= 6 &&
     form.confirmPassword.trim() &&
     form.password === form.confirmPassword;
@@ -47,17 +46,16 @@ const SignupScreen = ({ navigation, route }) => {
     if (!isFormValid) return;
     setLoading(true);
     try {
-      await registerUser({
+      await registerAdmin({
         name: form.name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
-        username: form.username.trim(),
         password: form.password,
-        role, // 'teacher' or 'student' — set by the toggle above
+        // role is ALWAYS set to 'admin' inside registerAdmin — not passed by UI
       });
       Alert.alert(
-        'Account Created ✅',
-        `Your ${role} account has been created. Please log in.`,
+        'Admin Account Created ✅',
+        `Welcome, ${form.name}! You can now log in with your credentials.`,
         [{ text: 'Go to Login', onPress: () => navigation.navigate('Login') }]
       );
     } catch (error) {
@@ -68,16 +66,16 @@ const SignupScreen = ({ navigation, route }) => {
   };
 
   const fields = [
-    { key: 'name',     label: 'Full Name',     placeholder: 'Enter your full name',    icon: '👤', keyboardType: 'default',       autoCapitalize: 'words' },
-    { key: 'email',    label: 'Email Address', placeholder: 'Enter your email',         icon: '✉️', keyboardType: 'email-address', autoCapitalize: 'none' },
-    { key: 'phone',    label: 'Phone Number',  placeholder: 'Enter your phone number',  icon: '📱', keyboardType: 'phone-pad',     autoCapitalize: 'none' },
-    { key: 'username', label: 'Username',      placeholder: 'Choose a username',        icon: '🆔', keyboardType: 'default',       autoCapitalize: 'none' },
+    { key: 'name',  label: 'Full Name',     placeholder: 'Enter your full name',    icon: '👤', keyboardType: 'default',       autoCapitalize: 'words' },
+    { key: 'email', label: 'Email Address', placeholder: 'Enter your email',         icon: '✉️', keyboardType: 'email-address', autoCapitalize: 'none' },
+    { key: 'phone', label: 'Phone Number',  placeholder: 'Enter your phone number',  icon: '📱', keyboardType: 'phone-pad',     autoCapitalize: 'none' },
   ];
 
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
 
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.circle1} />
         <View style={styles.circle2} />
@@ -85,7 +83,7 @@ const SignupScreen = ({ navigation, route }) => {
           <Text style={styles.backTxt}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.appName}>SAAPT</Text>
-        <Text style={styles.appSubtitle}>Create Account</Text>
+        <Text style={styles.appSubtitle}>Admin Registration</Text>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -96,33 +94,18 @@ const SignupScreen = ({ navigation, route }) => {
         >
           <View style={styles.card}>
 
-            {/* Role Switcher — Teacher or Student ONLY */}
-            <View style={styles.switcher}>
-              <TouchableOpacity
-                style={[styles.roleBtn, role === 'teacher' && styles.roleBtnActive]}
-                onPress={() => setRole('teacher')}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.roleTxt, role === 'teacher' && styles.roleTxtActive]}>
-                  👩‍🏫  Teacher
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.roleBtn, role === 'student' && styles.roleBtnActive]}
-                onPress={() => setRole('student')}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.roleTxt, role === 'student' && styles.roleTxtActive]}>
-                  🎓  Student
-                </Text>
-              </TouchableOpacity>
+            {/* Badge */}
+            <View style={styles.badge}>
+              <Text style={styles.badgeIcon}>🛡️</Text>
+              <Text style={styles.badgeTxt}>Admin Account</Text>
             </View>
 
-            <Text style={styles.cardTitle}>
-              {role === 'teacher' ? 'Teacher' : 'Student'} Registration
+            <Text style={styles.cardTitle}>Create Admin Account</Text>
+            <Text style={styles.cardSub}>
+              This account will have full access to manage teachers, students, classes, and system settings.
             </Text>
-            <Text style={styles.cardSub}>Fill in your details to create your account.</Text>
 
+            {/* Text fields */}
             {fields.map((field) => (
               <View key={field.key} style={styles.inputWrap}>
                 <Text style={styles.label}>{field.label}</Text>
@@ -142,6 +125,7 @@ const SignupScreen = ({ navigation, route }) => {
               </View>
             ))}
 
+            {/* Password */}
             <View style={styles.inputWrap}>
               <Text style={styles.label}>Password</Text>
               <View style={[styles.inputBox, form.password.length > 0 && styles.inputBoxActive]}>
@@ -161,6 +145,7 @@ const SignupScreen = ({ navigation, route }) => {
               </View>
             </View>
 
+            {/* Confirm Password */}
             <View style={styles.inputWrap}>
               <Text style={styles.label}>Confirm Password</Text>
               <View style={[
@@ -187,6 +172,7 @@ const SignupScreen = ({ navigation, route }) => {
               )}
             </View>
 
+            {/* Submit */}
             <TouchableOpacity
               style={[styles.btn, !isFormValid && styles.btnDisabled]}
               onPress={handleSignup}
@@ -194,7 +180,7 @@ const SignupScreen = ({ navigation, route }) => {
               activeOpacity={0.85}
             >
               <Text style={[styles.btnTxt, !isFormValid && styles.btnTxtDisabled]}>
-                {loading ? 'Creating Account...' : `Create ${role === 'teacher' ? 'Teacher' : 'Student'} Account`}
+                {loading ? 'Creating Admin Account...' : '🛡️  Create Admin Account'}
               </Text>
             </TouchableOpacity>
 
@@ -204,6 +190,7 @@ const SignupScreen = ({ navigation, route }) => {
                 <Text style={styles.rowLink}>Sign In</Text>
               </TouchableOpacity>
             </View>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -211,13 +198,13 @@ const SignupScreen = ({ navigation, route }) => {
   );
 };
 
-export default SignupScreen;
+export default AdminSignupScreen;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F4F7F5' },
   header: {
     backgroundColor: Colors.primary,
-    height: height * 0.22,
+    height: height * 0.24,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -234,14 +221,14 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08, shadowRadius: 20, elevation: 6,
   },
-  switcher: {
-    flexDirection: 'row', backgroundColor: '#E6F0EA', borderRadius: 50,
-    padding: 3, marginBottom: 20, height: 46, gap: 3,
+  badge: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#EEF2FF', borderRadius: 50,
+    paddingHorizontal: 14, paddingVertical: 7,
+    alignSelf: 'flex-start', marginBottom: 16,
   },
-  roleBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 50 },
-  roleBtnActive: { backgroundColor: Colors.primary },
-  roleTxt: { fontSize: 14, fontWeight: '500', color: Colors.primary },
-  roleTxtActive: { color: '#fff', fontWeight: '700' },
+  badgeIcon: { fontSize: 14, marginRight: 6 },
+  badgeTxt: { fontSize: 13, fontWeight: '700', color: Colors.primary },
   cardTitle: { fontSize: 22, fontWeight: '700', color: '#1C1C1C', marginBottom: 6 },
   cardSub: { fontSize: 13, color: '#6B6B6B', lineHeight: 20, marginBottom: 20 },
   inputWrap: { marginBottom: 14 },

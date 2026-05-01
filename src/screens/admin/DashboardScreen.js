@@ -15,16 +15,15 @@ import { db } from '../../services/firebase/config'; // adjust path as needed
 // ─── Icons (using text/emoji fallback if no icon library) ───────────────────
 // If you have @expo/vector-icons or react-native-vector-icons, swap these out
 const ICONS = {
-  teachers:  '👩‍🏫',
-  students:  '🎓',
-  classes:   '🏫',
-  users:     '👥',
-  addTeacher:'➕',
-  addStudent:'➕',
+  teachers:   '👩‍🏫',
+  students:   '🎓',
+  classes:    '🏫',
+  addTeacher: '➕',
+  addStudent: '➕',
   createClass:'🏛️',
-  reports:   '📊',
-  activity:  '🕐',
-  dot:       '●',
+  reports:    '📊',
+  activity:   '🕐',
+  dot:        '●',
 };
 
 // ─── Color Palette ────────────────────────────────────────────────────────────
@@ -67,13 +66,6 @@ const CARD_CONFIGS = [
     icon: ICONS.classes,
     color: COLORS.success,
     lightColor: COLORS.successLight,
-  },
-  {
-    key: 'users',
-    label: 'Total Users',
-    icon: ICONS.users,
-    color: COLORS.warning,
-    lightColor: COLORS.warningLight,
   },
 ];
 
@@ -172,46 +164,51 @@ const ActivityItem = ({ item }) => (
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-const DashboardScreen = ({ navigation }) => {
+const DashboardScreen = ({ navigation, user }) => {
+  // Partition key — every read is scoped to this admin's data
+  const adminId   = user?.uid  ?? null;
+  const adminName = user?.name ?? 'Admin';
+
   const [stats, setStats] = useState({
     teachers: null,
     students: null,
     classes:  null,
-    users:    null,
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [adminName]                 = useState('Super Admin');
 
   // ── Data Fetching ────────────────────────────────────────────────────────
   const fetchStats = async () => {
+    if (!adminId) return;
     try {
-      // Count teachers
+      // Count only this admin's teachers (created_by partition)
       const teacherQuery = query(
         collection(db, 'users'),
-        where('role', '==', 'teacher')
+        where('role', '==', 'teacher'),
+        where('created_by', '==', adminId)
       );
       const teacherSnap = await getCountFromServer(teacherQuery);
 
-      // Count students
+      // Count only this admin's students
       const studentQuery = query(
         collection(db, 'users'),
-        where('role', '==', 'student')
+        where('role', '==', 'student'),
+        where('created_by', '==', adminId)
       );
       const studentSnap = await getCountFromServer(studentQuery);
 
-      // Count classes
-      const classesSnap = await getCountFromServer(collection(db, 'classes'));
-
-      // Count all users
-      const usersSnap = await getCountFromServer(collection(db, 'users'));
+      // Count only this admin's classes
+      const classesQuery = query(
+        collection(db, 'classes'),
+        where('created_by', '==', adminId)
+      );
+      const classesSnap = await getCountFromServer(classesQuery);
 
       setStats({
         teachers: teacherSnap.data().count,
         students: studentSnap.data().count,
         classes:  classesSnap.data().count,
-        users:    usersSnap.data().count,
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -220,10 +217,12 @@ const DashboardScreen = ({ navigation }) => {
   };
 
   const fetchRecentActivity = async () => {
+    if (!adminId) return;
     try {
-      // Example: last 5 users added (adjust collection/field as needed)
+      // Last 5 users created by this admin
       const recentQuery = query(
         collection(db, 'users'),
+        where('created_by', '==', adminId),
         orderBy('createdAt', 'desc'),
         limit(5)
       );
@@ -259,6 +258,11 @@ const DashboardScreen = ({ navigation }) => {
   };
 
   const loadData = async () => {
+    if (!adminId) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     await Promise.all([fetchStats(), fetchRecentActivity()]);
     setLoading(false);
     setRefreshing(false);
@@ -266,7 +270,7 @@ const DashboardScreen = ({ navigation }) => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [adminId]);
 
   const onRefresh = () => {
     setRefreshing(true);

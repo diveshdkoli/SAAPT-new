@@ -25,6 +25,7 @@ import {
   setDoc,
   query,
   orderBy,
+  where,
   addDoc,
   serverTimestamp,
   updateDoc,          // ← added for edit
@@ -734,7 +735,10 @@ const EmptyState = ({ searchQuery, selectedFilter }) => {
 };
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-const UsersScreen = ({ navigation }) => {
+const UsersScreen = ({ navigation, user }) => {
+  // current admin's uid — used as partition key for all reads & writes
+  const adminId = user?.uid ?? null;
+
   const [users,          setUsers]          = useState([]);
   const [filteredUsers,  setFilteredUsers]  = useState([]);
   const [loading,        setLoading]        = useState(true);
@@ -752,19 +756,32 @@ const UsersScreen = ({ navigation }) => {
   const [editSheetVisible, setEditSheetVisible] = useState(false);
 
   const fetchUsers = async () => {
+    if (!adminId) {
+      setLoading(false);
+      return; // no admin uid yet — don't query
+    }
     try {
-      const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+      // 🔑 PARTITION: only fetch users created by this admin
+      const q = query(
+        collection(db, 'users'),
+        where('created_by', '==', adminId),
+        orderBy('createdAt', 'desc')
+      );
       const snapshot = await getDocs(q);
       setUsers(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
-    } catch {
-      Alert.alert('Error', 'Failed to load users. Please try again.');
+    } catch (err) {
+      console.error('fetchUsers error:', err);
+      Alert.alert('Error', err?.message || 'Failed to load users. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  // Re-fetch whenever adminId becomes available (it may be null on first render)
+  useEffect(() => {
+    if (adminId) fetchUsers();
+  }, [adminId]);
 
   useEffect(() => {
     let result = [...users];
@@ -785,10 +802,10 @@ const UsersScreen = ({ navigation }) => {
       const uid = credential.user.uid;
       await secondaryAuth.signOut();
 
-      const newUser = { name, full_name: name, email, phone, role: 'teacher', uid, createdAt: serverTimestamp() };
+      const newUser = { name, full_name: name, email, phone, role: 'teacher', uid, created_by: adminId, createdAt: serverTimestamp() };
       await setDoc(doc(db, 'users', uid), newUser);
 
-      setUsers(prev => [{ id: uid, ...newUser, createdAt: new Date() }, ...prev]);
+      setUsers(prev => [{ id: uid, ...newUser, created_by: adminId, createdAt: new Date() }, ...prev]);
       setModalVisible(false);
       Alert.alert('✅ Added', `${name} has been added as a teacher.`);
     } catch (error) {
@@ -861,9 +878,9 @@ const UsersScreen = ({ navigation }) => {
         await setDoc(doc(db, 'users', uid), {
           name: teacher.name, full_name: teacher.name,
           email: teacher.email, phone: teacher.phone || '',
-          role: 'teacher', uid, createdAt: serverTimestamp(),
+          role: 'teacher', uid, created_by: adminId, createdAt: serverTimestamp(),
         });
-        setUsers(prev => [{ id: uid, name: teacher.name, full_name: teacher.name, email: teacher.email, phone: teacher.phone || '', role: 'teacher', uid, createdAt: new Date() }, ...prev]);
+        setUsers(prev => [{ id: uid, name: teacher.name, full_name: teacher.name, email: teacher.email, phone: teacher.phone || '', role: 'teacher', uid, created_by: adminId, createdAt: new Date() }, ...prev]);
         successCount++;
       } catch (e) { failCount++; console.error(`Failed: ${teacher.email}`, e.message); }
     }
